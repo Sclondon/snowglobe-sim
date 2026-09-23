@@ -20,6 +20,7 @@ static func get_mesh(body: CreatureSpecies.Body) -> ArrayMesh:
 			CreatureSpecies.Body.BUTTERFLY: _cache[body] = _butterfly()
 			CreatureSpecies.Body.ANT: _cache[body] = _ant()
 			CreatureSpecies.Body.PERSON: _cache[body] = _person()
+			CreatureSpecies.Body.FIREFLY: _cache[body] = _firefly()
 			_: _cache[body] = _sea_monkey()
 	return _cache[body]
 
@@ -71,6 +72,17 @@ static func _person() -> ArrayMesh:
 		parts.append([_sphere(0.018), _xf(Vector3(side * 0.04, 0.95, 0.105)), DETAIL])
 	parts.append([_capsule(0.13, 0.44), _xf(Vector3(0, 0.62, 0)), BODY])
 	parts.append([_sphere(0.12), _xf(Vector3(0, 0.93, 0)), ACCENT])
+	return MeshUtil.merge_parts(parts)
+
+
+## Dark body, glassy wings, and a glowing tail (the BODY part).
+static func _firefly() -> ArrayMesh:
+	var parts := []
+	parts.append([_capsule(0.06, 0.4), _xf(Vector3(0, 0, 0.08), Vector3(PI * 0.5, 0, 0)), DETAIL])
+	parts.append([_sphere(1.0), _xf(Vector3(0, -0.01, -0.22), Vector3.ZERO, Vector3(0.13, 0.12, 0.2)), BODY])
+	for side in [-1.0, 1.0]:
+		parts.append([_sphere(1.0), _xf(Vector3(side * 0.16, 0.05, 0.05), Vector3(0, side * -0.3, 0), Vector3(0.16, 0.01, 0.07)), ACCENT])
+		parts.append([_cyl(0.004, 0.005, 0.14), _xf(Vector3(side * 0.03, 0.04, 0.3), Vector3(1.1, 0, side * -0.4)), DETAIL])
 	return MeshUtil.merge_parts(parts)
 
 

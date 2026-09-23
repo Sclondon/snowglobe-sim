@@ -4,6 +4,10 @@
 [ext_resource type="Script" uid="uid://bdvpr81c2q6bg" path="res://scripts/orbit_camera.gd" id="2_cam"]
 [ext_resource type="Shader" uid="uid://bhsgdr2l07yux" path="res://shaders/stand.gdshader" id="4_wood"]
 [ext_resource type="Script" path="res://scripts/ui/app_ui.gd" id="7_ui"]
+[ext_resource type="Script" path="res://scripts/scene/tablecloth.gd" id="8_cloth"]
+[ext_resource type="Script" path="res://scripts/scene/scene_lighting.gd" id="9_light"]
+[ext_resource type="Script" path="res://scripts/scene/ambient_atmosphere.gd" id="10_air"]
+[ext_resource type="Script" path="res://scripts/scene/scene_settings.gd" id="11_settings"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
 sky_top_color = Color(0.5, 0.52, 0.58, 1)
@@ -30,10 +34,10 @@ glow_intensity = 0.5
 glow_bloom = 0.04
 
 [sub_resource type="BoxMesh" id="shelf_mesh"]
-size = Vector3(10, 0.14, 3.6)
+size = Vector3(16, 0.14, 6)
 
 [sub_resource type="BoxShape3D" id="shelf_shape"]
-size = Vector3(10, 0.14, 3.6)
+size = Vector3(16, 0.14, 6)
 
 [sub_resource type="PhysicsMaterial" id="shelf_physics"]
 friction = 0.8
@@ -54,8 +58,10 @@ shader_parameter/trim_end = -1.0
 shader_parameter/trim_color = Color(0.95, 0.75, 0.35, 1)
 shader_parameter/trim_roughness = 0.35
 
-[node name="Main" type="Node3D" unique_id=977697464 node_paths=PackedStringArray("camera", "ui", "spot_light", "inspect_fill")]
+[node name="Main" type="Node3D" unique_id=977697464 node_paths=PackedStringArray("camera", "ui", "spot_light", "inspect_fill", "scene_settings", "atmosphere")]
 script = ExtResource("1_main")
+scene_settings = NodePath("SceneSettings")
+atmosphere = NodePath("Atmosphere")
 camera = NodePath("Camera")
 ui = NodePath("UI")
 spot_light = NodePath("SpotLight")
@@ -108,3 +114,21 @@ shape = SubResource("shelf_shape")
 
 [node name="UI" type="CanvasLayer" parent="."]
 script = ExtResource("7_ui")
+
+[node name="Tablecloth" type="MeshInstance3D" parent="."]
+script = ExtResource("8_cloth")
+
+[node name="Lighting" type="Node3D" parent="." node_paths=PackedStringArray("spot_light", "environment")]
+script = ExtResource("9_light")
+spot_light = NodePath("../SpotLight")
+environment = NodePath("../WorldEnvironment")
+
+[node name="Atmosphere" type="Node3D" parent="." node_paths=PackedStringArray("spot_light")]
+script = ExtResource("10_air")
+spot_light = NodePath("../SpotLight")
+
+[node name="SceneSettings" type="Node" parent="." node_paths=PackedStringArray("tablecloth_node", "lighting_node", "atmosphere_node")]
+script = ExtResource("11_settings")
+tablecloth_node = NodePath("../Tablecloth")
+lighting_node = NodePath("../Lighting")
+atmosphere_node = NodePath("../Atmosphere")

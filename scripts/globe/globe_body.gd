@@ -2,21 +2,25 @@ class_name GlobeBody
 extends RigidBody3D
 ## Physics body for one snow globe on the shelf (the SnowGlobe is its child,
 ## sharing its origin). Grab it and it swings from where you hold it; let go
-## mid-swing and it flies. It's bottom-heavy and gently rights itself, falls
-## back onto the shelf if tossed off, and is steered kinematically while being
-## inspected. Feeds its motion to the globe so the contents react.
+## mid-swing and it flies. It's bottom-heavy (it wobbles back from a nudge but
+## can be knocked over), drops back in from above if tossed off the shelf, and
+## is steered kinematically while being inspected. Feeds its motion to the
+## globe so the contents react.
 
 signal fell_off
+## Landed or hit something hard (world position, strength 0..~3).
+signal thumped(at: Vector3, strength: float)
 
 ## How hard the grabbed point is pulled toward the pointer.
-@export var grab_stiffness := 90.0
+@export var grab_stiffness := 260.0
 ## Damping on the grabbed point (higher = less wobble while carrying).
-@export var grab_damping := 11.0
+@export var grab_damping := 22.0
 ## Strongest pull (N per kg), so fast drags don't teleport the globe.
-@export var max_grab_accel := 120.0
-## Torque that stands the globe back up.
-@export var upright_strength := 6.0
-@export var upright_damping := 1.5
+@export var max_grab_accel := 450.0
+## Height above its spot a fallen-off globe drops back in from.
+@export var respawn_height := 6.0
+## How long the Shake routine lasts (seconds).
+@export var shake_duration := 0.9
 ## Below this height the globe counts as fallen off and respawns.
 @export var fall_limit := -6.0
 ## Strength of a Shake-button shake.
@@ -40,6 +44,9 @@ var _steer_time := 0.0
 var _shake_time := -1.0
 var _shake_power := 0.0
 var _shake_dir := Vector3.RIGHT
+var _shake_anchor := Vector3.ZERO
+var _shake_grab := Vector3.ZERO
+var _prev_speed := 0.0
 var _prev_center_vel := Vector3.ZERO
 var _last_center := Vector3.ZERO
 var _kin_angular := Vector3.ZERO
@@ -60,6 +67,9 @@ func _init() -> void:
 	mat.bounce = 0.15
 	physics_material_override = mat
 	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+	# Needed to notice hard landings.
+	contact_monitor = true
+	max_contacts_reported = 4
 	_rng.randomize()
 
 
@@ -74,8 +84,8 @@ func _ready() -> void:
 		_rebuild_shape()
 
 
-## Collision hull from the glass and stand, plus a low centre of mass so the
-## globe settles upright like a weeble.
+## Collision hull from the glass and stand, plus a low centre of mass so a
+## nudged globe rocks back upright (a hard knock still tips it over).
 func _rebuild_shape() -> void:
 	var pts := PackedVector3Array()
 	var shape := globe.get_container()
@@ -86,7 +96,12 @@ func _rebuild_shape() -> void:
 		for i in glass_sides:
 			pts.append(gc + MeshUtil.ring_dir(i, glass_sides) * p.x + Vector3(0, p.y, 0))
 	# The stand: a ring at the bottom and one at the floor.
-	if globe.base_type != GlobeBase.Kind.NONE:
+	if globe.base_type == GlobeBase.Kind.PLATFORM:
+		for i in sides:
+			var d := MeshUtil.ring_dir(i, sides)
+			pts.append(d * globe.platform_radius())
+			pts.append(d * globe.platform_radius() + Vector3(0, globe.platform_top(), 0))
+	elif globe.base_type != GlobeBase.Kind.NONE:
 		var r_base := globe.globe_radius * (globe.stand_bottom_radius if globe.base_type == GlobeBase.Kind.PEDESTAL else 1.25)
 		for i in sides:
 			var d := MeshUtil.ring_dir(i, sides)
@@ -95,7 +110,12 @@ func _rebuild_shape() -> void:
 	var hull := ConvexPolygonShape3D.new()
 	hull.points = pts
 	_shape_node.shape = hull
-	center_of_mass = Vector3(0, globe.floor_y * 0.6, 0)
+	# High enough that a hard knock can leave it lying on its side, low enough
+	# that small nudges still wobble back upright.
+	center_of_mass = Vector3(0, lerpf(globe.floor_y, globe.glass_center.y, 0.45), 0)
+	# Bigger globes are heavier (forces below scale with mass, so they still
+	# follow the pointer, just with more swing).
+	mass = clampf(globe.globe_radius * globe.globe_radius, 0.12, 5.0)
 
 
 ## Starts carrying the globe from a world-space point on it.
@@ -109,11 +129,25 @@ func release() -> void:
 	held = false
 
 
-## A burst of jolts; strength 1 = the Shake button.
+## A good hard shake, like a hand picking it up and shaking it: lift, then
+## swing side to side a few times. strength 1 = the Shake button.
 func shake(strength := 1.0) -> void:
+	if freeze:
+		# Inspecting: wobble the steered target instead.
+		_shake_time = 0.0
+		_shake_power = strength * shake_strength
+		return
 	_shake_time = 0.0
-	_shake_power = strength * shake_strength
-	_shake_dir = Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-0.4, 0.4)).normalized()
+	_shake_power = clampf(strength * shake_strength, 0.3, 2.0)
+	var cam_right := Vector3.RIGHT
+	var vp := get_viewport()
+	if vp and vp.get_camera_3d():
+		cam_right = vp.get_camera_3d().global_basis.x
+	_shake_dir = (cam_right + Vector3(0, 0, _rng.randf_range(-0.3, 0.3))).normalized()
+	# Hold it by the top of the glass.
+	var top := globe.glass_center + Vector3.UP * globe.get_container().y_max * 0.8
+	_shake_grab = top
+	_shake_anchor = global_transform * top
 
 
 ## Switches to kinematic steering (inspect mode).
@@ -138,48 +172,62 @@ func set_target_center(world_center: Vector3) -> void:
 	target_center = world_center
 
 
+## Drops the globe back in from above "at", turning slowly.
 func respawn(at: Vector3) -> void:
 	_steer = 0
 	freeze = false
 	held = false
-	global_transform = Transform3D(Basis(), at + Vector3(0, 1.2, 0))
+	_shake_time = -1.0
+	global_transform = Transform3D(Basis(), at + Vector3(0, respawn_height, 0))
+	linear_velocity = Vector3.ZERO
+	# A lazy turn about its own axis only: landing tilted from this height would
+	# catch the stand's edge and roll it over.
+	angular_velocity = Vector3(0, _rng.randf_range(-1.5, 1.5), 0)
+
+
+## Stands it back up where it is (used by "put back" / reset).
+func stand_up() -> void:
+	global_transform = Transform3D(Basis(Vector3.UP, global_basis.get_euler().y), Vector3(global_position.x, maxf(global_position.y, 0.0) + 0.05, global_position.z))
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
-	var com := state.transform * state.center_of_mass_local
-	if held:
-		var grab_world := state.transform * grab_local
+	var target := drag_target
+	var grab_point := grab_local
+	var pulling := held
+	if _shake_time >= 0.0 and not freeze:
+		# The "hand" shake: lift, then swing side to side, then let go.
+		_shake_time += state.step
+		var t := _shake_time / shake_duration
+		var R := globe.globe_radius
+		var lift := sin(minf(t * 3.0, 1.0) * PI * 0.5) * (1.0 - smoothstep(0.8, 1.0, t))
+		var swing := sin(_shake_time * TAU * 4.0) * smoothstep(0.1, 0.25, t) * (1.0 - smoothstep(0.75, 1.0, t))
+		var bob := sin(_shake_time * TAU * 8.0) * 0.3
+		var offset := Vector3.UP * (0.35 + bob * 0.2) * R * lift * _shake_power + _shake_dir * swing * 0.45 * R * _shake_power
+		if held:
+			target += offset
+		else:
+			grab_point = _shake_grab
+			target = _shake_anchor + offset
+			pulling = true
+		if t >= 1.0:
+			_shake_time = -1.0
+	if pulling:
+		var grab_world := state.transform * grab_point
 		var r := grab_world - state.transform.origin
 		var point_vel := state.linear_velocity + state.angular_velocity.cross(r)
-		var accel := (drag_target - grab_world) * grab_stiffness - point_vel * grab_damping
+		var accel := (target - grab_world) * grab_stiffness - point_vel * grab_damping
 		accel = accel.limit_length(max_grab_accel)
 		# Hold against gravity too, so it hangs rather than sags.
 		state.apply_force((accel + Vector3.UP * 9.8) * mass, r)
-		state.angular_velocity *= exp(-2.5 * state.step)
+		state.angular_velocity *= exp(-1.2 * state.step)
 
-	# Gentle self-righting (always on, stronger while carried).
-	var up := state.transform.basis.y
-	var tilt := up.cross(Vector3.UP)
-	var w := state.angular_velocity
-	var tilt_w := w - Vector3.UP * w.dot(Vector3.UP)
-	var k := upright_strength * (2.5 if held else 1.0)
-	state.apply_torque((tilt * k - tilt_w * upright_damping) * mass)
-
-	if _shake_time >= 0.0:
-		_shake_time += state.step
-		var period := 0.07
-		var prev := int((_shake_time - state.step) / period)
-		var now := int(_shake_time / period)
-		if now != prev:
-			# Alternate side to side with a little hop, fading out.
-			var fade := maxf(0.0, 1.0 - _shake_time / 0.7)
-			var side := 1.0 if now % 2 == 0 else -1.0
-			var jolt := _shake_dir.rotated(Vector3.UP, _rng.randf_range(-0.5, 0.5)) * side * 2.4 + Vector3.UP * _rng.randf_range(0.3, 1.2)
-			state.apply_impulse(jolt * _shake_power * fade * mass, com - state.transform.origin + Vector3.UP * 0.3)
-		if _shake_time > 0.7:
-			_shake_time = -1.0
+	# Hard landings / knocks (for the room's dust and fog).
+	var speed := state.linear_velocity.length()
+	if _prev_speed - speed > 2.5 and state.get_contact_count() > 0:
+		thumped.emit(state.transform.origin, (_prev_speed - speed) * 0.3)
+	_prev_speed = speed
 
 
 func _physics_process(delta: float) -> void:
@@ -219,6 +267,14 @@ func _steer_kinematic(delta: float) -> void:
 	_kin_angular = dq.get_axis() * (ang / delta) if ang > 1e-6 else Vector3.ZERO
 	var b := Basis(rot)
 	var goal_center := target_center
+	if _shake_time >= 0.0:
+		# Shaking while inspecting: wobble in front of the camera.
+		_shake_time += delta
+		var fade := 1.0 - clampf(_shake_time / shake_duration, 0.0, 1.0)
+		goal_center += (Vector3.RIGHT * sin(_shake_time * TAU * 4.0) + Vector3.UP * sin(_shake_time * TAU * 6.0) * 0.5) * globe.globe_radius * 0.35 * fade * _shake_power
+		t = 1.0 - exp(-30.0 * delta)
+		if fade <= 0.0:
+			_shake_time = -1.0
 	if _steer == 2:
 		goal_center = _return_spot + Vector3.UP * (globe.glass_center.y + 0.25)
 	var center := (global_transform * globe.glass_center).lerp(goal_center, t)

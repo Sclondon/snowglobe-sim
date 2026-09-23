@@ -3,10 +3,10 @@ extends RefCounted
 ## Builds what the glass stands on: a turned pedestal, a ring on legs, or
 ## nothing. Materials come from the caller (see SnowGlobe._update_materials).
 
-enum Kind { PEDESTAL, LEGS, NONE }
+enum Kind { PEDESTAL, LEGS, NONE, PLATFORM }
 enum Finish { WOOD, METAL, CERAMIC, STONE }
 
-const KIND_NAMES := ["Pedestal", "Legs & ring", "None"]
+const KIND_NAMES := ["Pedestal", "Legs & ring", "None", "Platform & legs"]
 const FINISH_NAMES := ["Wood", "Metal", "Ceramic", "Stone"]
 ## Default (colour, accent) per finish, used when the finish is changed.
 const FINISH_COLORS := [
@@ -40,6 +40,43 @@ static func build_pedestal(sides: int, height: float, bottom_r: float, top_r: fl
 
 static func trim_range(height: float) -> Vector2:
 	return Vector2(height * 0.84, height * 0.9)
+
+
+## A flat slab the glass sits on, at height `top`, on legs at its corners.
+static func build_platform(sides: int, top: float, radius: float, size: float, body: Material, trim: Material) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Platform"
+	var t := size * 0.07
+	var slab := MeshInstance3D.new()
+	slab.mesh = MeshUtil.revolve(PackedVector2Array([Vector2(0, top - t), Vector2(radius, top - t), Vector2(radius, top), Vector2(0, top)]), sides, true)
+	slab.material_override = body
+	root.add_child(slab)
+	# A thin trim band round the slab's edge.
+	var band := MeshInstance3D.new()
+	band.mesh = MeshUtil.revolve(PackedVector2Array([Vector2(radius * 1.01, top - t * 0.65), Vector2(radius * 1.01, top - t * 0.35)]), sides, true)
+	band.material_override = trim
+	root.add_child(band)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var foot_mesh := SphereMesh.new()
+	foot_mesh.radius = size * 0.045
+	foot_mesh.height = size * 0.045
+	var legs := sides if sides <= 6 else 4
+	for i in legs:
+		var d := MeshUtil.ring_dir(i, legs)
+		var from := d * radius * 0.85 + Vector3(0, top - t, 0)
+		var to := d * radius * 0.95 + Vector3(0, size * 0.02, 0)
+		MeshUtil.add_beam(st, from, to, size * 0.06, size * 0.045)
+		var f := MeshInstance3D.new()
+		f.mesh = foot_mesh
+		f.position = to
+		f.material_override = trim
+		root.add_child(f)
+	var leg_mi := MeshInstance3D.new()
+	leg_mi.mesh = st.commit()
+	leg_mi.material_override = body
+	root.add_child(leg_mi)
+	return root
 
 
 ## A ring hugging the glass at `ring_y` (radius `ring_r`) on `legs` splayed

@@ -1,0 +1,164 @@
+{
+	"globe": {
+		"base_accent": [
+			0.24,
+			0.12,
+			0.06,
+			1.0
+		],
+		"base_color": [
+			0.75,
+			0.45,
+			0.3,
+			1.0
+		],
+		"base_finish": 2,
+		"base_type": 0,
+		"field_color": [
+			0.35,
+			0.8,
+			1.0,
+			1.0
+		],
+		"fill": 1,
+		"floor_color": [
+			0.86,
+			0.7,
+			0.45,
+			1.0
+		],
+		"floor_depth": 0.6,
+		"floor_type": 1,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 0,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			1.0,
+			0.96,
+			0.88,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.12,
+		"shell": 0,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.95,
+			0.75,
+			0.35,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"kind": "heat",
+			"name": "Heat waves",
+			"settings": {
+				"glow_color": [
+					1.0,
+					0.55,
+					0.25,
+					1.0
+				],
+				"strength": 1.0,
+				"warm_glow": true
+			}
+		},
+		{
+			"kind": "sunrays",
+			"name": "Sun rays",
+			"settings": {
+				"brightness": 1.3,
+				"color": [
+					1.0,
+					0.9,
+					0.6,
+					1.0
+				],
+				"intensity": 0.55,
+				"ray_seed": 2,
+				"rays": 5,
+				"slant": 0.35
+			}
+		},
+		{
+			"amount": 300,
+			"kind": "particles",
+			"name": "Dust",
+			"seed": 0,
+			"style": {
+				"color": [
+					1.0,
+					0.92,
+					0.78,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 4.0,
+				"emission": 0.9,
+				"gravity": 0.03,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": false,
+				"pop_delay": 1.5,
+				"restitution": 0.1,
+				"roughness": 0.9,
+				"shake_response": 0.08,
+				"shake_turbulence": 1.6,
+				"shape": 4,
+				"size": 0.014,
+				"size_randomness": 0.6,
+				"stickiness": 3.0,
+				"stretch": 0.12,
+				"swirl_response": 1.0,
+				"tumble_speed": 0.0,
+				"turbulence": 0.05,
+				"wind": 0.0
+			}
+		}
+	],
+	"name": "Desert Mirage",
+	"props": [
+		{
+			"color": "#4f8a3a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "cactus",
+			"x": -0.3,
+			"z": 0.0
+		},
+		{
+			"color": "#4f8a3a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "cactus",
+			"x": 0.35,
+			"z": -0.25
+		},
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "rocks",
+			"x": 0.1,
+			"z": 0.35
+		}
+	],
+	"version": 2
+}

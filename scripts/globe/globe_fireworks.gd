@@ -7,9 +7,11 @@ extends MultiMeshInstance3D
 
 const KIND := "fireworks"
 ## Stored in presets.
-const SETTINGS: Array[String] = ["launch_interval", "burst_size", "rocket_speed", "spark_speed", "spark_life", "spark_size", "gravity", "multicolour", "color", "glow"]
+const SETTINGS: Array[String] = ["auto_launch", "shake_volley", "launch_interval", "burst_size", "rocket_speed", "spark_speed", "spark_life", "spark_size", "gravity", "multicolour", "color", "glow"]
 ## Shown in the in-game editor.
 const EDITOR_ROWS := [
+	["auto_launch", "Launch on their own too"],
+	["shake_volley", "Rockets per shake", 1, 12, 1],
 	["launch_interval", "Seconds between rockets", 0.2, 5.0, 0.05],
 	["burst_size", "Sparks per burst", 10, 150, 1],
 	["rocket_speed", "Rocket speed", 0.5, 3.0, 0.01],
@@ -26,6 +28,10 @@ const SHADER := preload("res://shaders/globe_particles.gdshader")
 const STRIDE := 20
 const MAX_SPARKS := 600
 
+## Also launch rockets every so often without shaking.
+@export var auto_launch := true
+## Rockets fired each time the globe is shaken.
+@export_range(1, 12, 1) var shake_volley := 5
 @export_range(0.2, 5.0, 0.05) var launch_interval := 1.3
 @export_range(10, 150, 1) var burst_size := 60
 ## Rocket launch speed in globe radii per second.
@@ -52,7 +58,8 @@ var _rocket := PackedByteArray()
 var _buf := PackedFloat32Array()
 var _rng := RandomNumberGenerator.new()
 var _next_launch := 0.5
-var _agitation := 0.0
+var _prev_agitation := 0.0
+var _volley_cooldown := 0.0
 
 
 func _init() -> void:
@@ -107,18 +114,20 @@ func _physics_process(delta: float) -> void:
 	var R := _globe.globe_radius
 	var inv := _globe.global_basis.orthonormalized().inverse()
 	var up := inv * Vector3.UP
-	var kick := minf(_globe.linear_acceleration.length() * 0.01 + _globe.angular_velocity.length() * 0.15, 2.0)
-	_agitation *= exp(-2.0 * delta)
-	if kick - _agitation > 0.4:
-		# A shake sets off a volley.
-		for k in 3:
+	# A shake (the globe's agitation jumping up) sets off a volley.
+	_volley_cooldown -= delta
+	var ag := _globe.agitation
+	if ag > 0.35 and ag > _prev_agitation + 0.1 and _volley_cooldown <= 0.0:
+		_volley_cooldown = 0.6
+		for k in shake_volley:
 			_launch(up)
-	_agitation = maxf(_agitation, kick)
+	_prev_agitation = ag
 
-	_next_launch -= delta
-	if _next_launch <= 0.0:
-		_next_launch = launch_interval * _rng.randf_range(0.6, 1.4)
-		_launch(up)
+	if auto_launch:
+		_next_launch -= delta
+		if _next_launch <= 0.0:
+			_next_launch = launch_interval * _rng.randf_range(0.6, 1.4)
+			_launch(up)
 
 	var shape := _globe.get_container()
 	var gc := _globe.glass_center

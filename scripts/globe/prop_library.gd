@@ -3,19 +3,24 @@ extends RefCounted
 ## Little scenery pieces for inside the globe, built from simple shapes.
 ## Built at the size they'd have in a globe of radius 1; SnowGlobe scales
 ## them. `radius` is the footprint creatures and particles steer around,
-## `height` how tall that obstacle is.
+## `height` how tall that obstacle is. `flex` is how much a prop leans when
+## the globe moves; `loose` props aren't fixed at all but roll, bounce and
+## (frogs) hop about (see LooseProps).
 
 const TYPES := {
-	"pine": {"name": "Pine tree", "radius": 0.18, "height": 0.55, "color": "#21603a"},
-	"round_tree": {"name": "Round tree", "radius": 0.18, "height": 0.5, "color": "#3f7d3a"},
+	"pine": {"name": "Pine tree", "radius": 0.18, "height": 0.55, "color": "#21603a", "flex": 0.18},
+	"round_tree": {"name": "Round tree", "radius": 0.18, "height": 0.5, "color": "#3f7d3a", "flex": 0.22},
 	"snowman": {"name": "Snowman", "radius": 0.1, "height": 0.4, "color": "#f2f5fa"},
 	"cabin": {"name": "Cabin", "radius": 0.2, "height": 0.36, "color": "#7a4a2a"},
 	"rocks": {"name": "Rocks", "radius": 0.15, "height": 0.12, "color": "#6f6d68"},
-	"coral": {"name": "Coral", "radius": 0.14, "height": 0.3, "color": "#e8664f"},
-	"seaweed": {"name": "Seaweed", "radius": 0.07, "height": 0.45, "color": "#2f7d4f"},
-	"cactus": {"name": "Cactus", "radius": 0.08, "height": 0.4, "color": "#4f8a3a"},
+	"coral": {"name": "Coral", "radius": 0.14, "height": 0.3, "color": "#e8664f", "flex": 0.12},
+	"seaweed": {"name": "Seaweed", "radius": 0.07, "height": 0.45, "color": "#2f7d4f", "flex": 1.0},
+	"cactus": {"name": "Cactus", "radius": 0.08, "height": 0.4, "color": "#4f8a3a", "flex": 0.06},
 	"anthill": {"name": "Anthill", "radius": 0.17, "height": 0.13, "color": "#9a6a3a"},
-	"lighthouse": {"name": "Lighthouse", "radius": 0.1, "height": 0.62, "color": "#e04040"},
+	"lighthouse": {"name": "Lighthouse", "radius": 0.1, "height": 0.62, "color": "#e04040", "flex": 0.04},
+	"ball": {"name": "Bouncy ball", "radius": 0.06, "height": 0.12, "color": "#e8b030", "loose": true, "bounce": 0.75},
+	"ring": {"name": "Ring", "radius": 0.08, "height": 0.03, "color": "#e0c060", "loose": true, "bounce": 0.35},
+	"frog": {"name": "Frog", "radius": 0.07, "height": 0.08, "color": "#4aa33a", "loose": true, "bounce": 0.2},
 }
 
 static var _seaweed_shader: Shader
@@ -42,6 +47,9 @@ static func build(type: String, color: Color) -> Node3D:
 		"cactus": _cactus(root, color)
 		"anthill": _anthill(root, color)
 		"lighthouse": _lighthouse(root, color)
+		"ball": _ball(root, color)
+		"ring": _ring(root, color)
+		"frog": _frog(root, color)
 		_: _pine(root, color)
 	return root
 
@@ -132,8 +140,11 @@ static func _seaweed(root: Node3D, color: Color) -> void:
 shader_type spatial;
 render_mode cull_disabled;
 uniform vec4 color : source_color;
+/** Bend from the globe moving (set by SnowGlobe), in world units. */
+uniform vec3 push = vec3(0.0);
 void vertex() {
 	float h = max(VERTEX.y, 0.0);
+	VERTEX += inverse(mat3(MODEL_MATRIX)) * push * h * h * 6.0;
 	VERTEX.x += sin(TIME * 1.6 + NODE_POSITION_WORLD.x * 7.0 + VERTEX.y * 5.0) * h * h * 0.6;
 	VERTEX.z += cos(TIME * 1.2 + NODE_POSITION_WORLD.z * 7.0 + VERTEX.y * 4.0) * h * h * 0.4;
 }
@@ -145,6 +156,8 @@ void fragment() {
 	var m := ShaderMaterial.new()
 	m.shader = _seaweed_shader
 	m.set_shader_parameter("color", color)
+	# SnowGlobe pushes the blades around through this material.
+	root.set_meta(&"sway_material", m)
 	for i in 4:
 		var blade := BoxMesh.new()
 		var h := 0.3 + 0.04 * i
@@ -189,6 +202,42 @@ static func _lighthouse(root: Node3D, color: Color) -> void:
 	lamp.emission_energy_multiplier = 2.5
 	_add(root, _cyl(0.035, 0.035, 0.06, 12), lamp, Vector3(0, 0.51, 0))
 	_add(root, _cyl(0.0, 0.05, 0.06, 12), band, Vector3(0, 0.57, 0))
+
+
+static func _ball(root: Node3D, color: Color) -> void:
+	var m := _mat(color, 0.3)
+	_add(root, _sphere(0.06), m, Vector3(0, 0, 0))
+	# A stripe so you can see it roll.
+	var band := _cyl(0.061, 0.061, 0.02, 16)
+	_add(root, band, _mat(Color.WHITE, 0.3), Vector3.ZERO)
+
+
+static func _ring(root: Node3D, color: Color) -> void:
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.055
+	torus.outer_radius = 0.08
+	torus.rings = 24
+	torus.ring_segments = 8
+	var m := _mat(color, 0.25)
+	m.metallic = 0.8
+	_add(root, torus, m, Vector3.ZERO)
+
+
+static func _frog(root: Node3D, color: Color) -> void:
+	var skin := _mat(color, 0.5)
+	var body := _add(root, _sphere(1.0), skin, Vector3(0, 0.035, -0.005))
+	body.scale = Vector3(0.05, 0.035, 0.06)
+	var head := _add(root, _sphere(1.0), skin, Vector3(0, 0.05, 0.045))
+	head.scale = Vector3(0.042, 0.028, 0.035)
+	var eye_white := _mat(Color(0.95, 0.95, 0.85))
+	var pupil := _mat(Color(0.05, 0.05, 0.05))
+	for side in [-1.0, 1.0]:
+		_add(root, _sphere(0.014), eye_white, Vector3(side * 0.024, 0.074, 0.05))
+		_add(root, _sphere(0.007), pupil, Vector3(side * 0.027, 0.078, 0.061))
+		var leg := _add(root, _sphere(1.0), skin, Vector3(side * 0.045, 0.015, -0.03))
+		leg.scale = Vector3(0.018, 0.015, 0.035)
+		var arm := _add(root, _sphere(1.0), skin, Vector3(side * 0.03, 0.012, 0.035))
+		arm.scale = Vector3(0.01, 0.012, 0.02)
 
 
 # --- Helpers ------------------------------------------------------------------

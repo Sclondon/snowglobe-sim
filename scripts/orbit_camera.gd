@@ -10,7 +10,7 @@ extends Camera3D
 @export var focus := Vector3(0, 1.1, 0)
 @export var distance := 6.5
 @export var min_distance := 1.5
-@export var max_distance := 14.0
+@export var max_distance := 22.0
 @export_range(-89, 89) var pitch_degrees := -14.0
 @export var yaw_degrees := 0.0
 @export var min_pitch := -80.0

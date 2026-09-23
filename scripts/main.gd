@@ -23,9 +23,13 @@ extends Node3D
 enum Mode { SHELF, INSPECT, INSIDE }
 
 ## The most globes the shelf holds. Change freely.
-@export var max_globes := 3
+@export var max_globes := 8
 @export var camera: OrbitCamera
 @export var ui: AppUI
+## Room settings (lighting, tablecloth, dust, fog), saved with the session.
+@export var scene_settings: SceneSettings
+## Room dust and fog, stirred by shakes and thumps.
+@export var atmosphere: AmbientAtmosphere
 ## Spot light that follows the selected globe (optional).
 @export var spot_light: SpotLight3D
 ## Soft light near the camera that fades in while inspecting, so the contents
@@ -33,7 +37,7 @@ enum Mode { SHELF, INSPECT, INSIDE }
 @export var inspect_fill: Light3D
 @export var inspect_fill_energy := 0.8
 ## Half the shelf's width (x) and depth (y), for placing globes.
-@export var shelf_half_size := Vector2(4.8, 1.7)
+@export var shelf_half_size := Vector2(7.6, 2.7)
 ## Preset used when there's no saved session.
 @export_file("*.json") var starting_preset := "res://presets/01_classic_snow.json"
 ## Lowest / highest a carried globe's grab point can go.
@@ -50,12 +54,15 @@ var selected: GlobeBody
 var _mode := Mode.SHELF
 var _holding: GlobeBody
 var _grab_plane := Plane()
+var _grab_height := 0.0
 var _twisting := false
 var _orbiting := false
 var _touched: SnowGlobe
 var _view_rect := Rect2(0, 0, 1, 1)
 var _globes_root: Node3D
 var _ring: MeshInstance3D
+var _ring_mat: StandardMaterial3D
+var _ring_alpha := 0.0
 ## Active touch points by finger index; two or more means a gesture, and the
 ## mouse events Godot emulates from the first finger are ignored.
 var _touches := {}
@@ -77,7 +84,8 @@ func _ready() -> void:
 	if ui:
 		ui.shake_pressed.connect(func() -> void:
 			if selected:
-				selected.shake())
+				shake_globe(selected))
+		ui.set_scene_settings(scene_settings)
 		ui.inspect_pressed.connect(func() -> void: _set_mode(Mode.SHELF if _mode == Mode.INSPECT else Mode.INSPECT))
 		ui.inside_pressed.connect(func() -> void: _set_mode(Mode.SHELF if _mode == Mode.INSIDE else Mode.INSIDE))
 		ui.add_globe_pressed.connect(_on_add_pressed)
@@ -89,10 +97,15 @@ func _ready() -> void:
 	var motion := DeviceShake.new()
 	motion.shaken.connect(func(strength: float) -> void:
 		for g in globes:
-			g.shake(strength))
+			shake_globe(g, strength))
 	add_child(motion)
 
-	var session: Array = [] if "--fresh" in OS.get_cmdline_user_args() else GlobePreset.load_session()
+	var fresh := "--fresh" in OS.get_cmdline_user_args()
+	if scene_settings:
+		if not fresh:
+			scene_settings.restore(GlobePreset.load_session_scene())
+		scene_settings.apply_all()
+	var session: Array = [] if fresh else GlobePreset.load_session()
 	if session.is_empty():
 		session = [GlobePreset.load_file(starting_preset)]
 	for data in session.slice(0, max_globes):
@@ -116,7 +129,7 @@ func _process(delta: float) -> void:
 		selected.set_target_center(camera.project_position(_view_rect.get_center() * vp, depth))
 	elif _mode == Mode.SHELF:
 		# Keep the selected globe framed as it moves along the shelf.
-		var want := Vector3(clampf(sel_pos.x, -shelf_half_size.x, shelf_half_size.x), 1.1, clampf(sel_pos.z, -1.0, 1.0) * 0.5)
+		var want := Vector3(clampf(sel_pos.x, -shelf_half_size.x, shelf_half_size.x), 1.1, clampf(sel_pos.z, -shelf_half_size.y, shelf_half_size.y) * 0.6)
 		camera.focus = camera.focus.lerp(want, 1.0 - exp(-2.5 * delta))
 	if spot_light:
 		var aim := selected.globe.global_transform * selected.globe.glass_center
@@ -127,9 +140,11 @@ func _process(delta: float) -> void:
 		var goal := inspect_fill_energy if _mode == Mode.INSPECT else 0.0
 		inspect_fill.light_energy = move_toward(inspect_fill.light_energy, goal, delta * 1.5)
 		inspect_fill.visible = inspect_fill.light_energy > 0.001
-	# Selection ring on the shelf under the selected globe.
-	_ring.visible = globes.size() > 1 and _mode == Mode.SHELF and sel_pos.y > -0.5
-	_ring.global_position = Vector3(sel_pos.x, 0.006, sel_pos.z)
+	# Selection ring under the selected globe: flashes on select, then fades.
+	_ring_alpha = move_toward(_ring_alpha, 0.0, delta * 1.2)
+	_ring_mat.albedo_color.a = _ring_alpha
+	_ring.visible = _ring_alpha > 0.01 and _mode == Mode.SHELF and sel_pos.y > -0.5
+	_ring.global_position = Vector3(sel_pos.x, 0.012, sel_pos.z)
 
 
 # --- Globes on the shelf ----------------------------------------------------------
@@ -147,6 +162,10 @@ func add_globe(data: Dictionary) -> GlobeBody:
 	body.position = body.home + Vector3.UP * 0.02
 	_globes_root.add_child(body, true)
 	GlobePreset.apply(g, data)
+	body.fell_off.connect(_on_fell_off.bind(body))
+	body.thumped.connect(func(at: Vector3, strength: float) -> void:
+		if atmosphere:
+			atmosphere.disturb(at, strength))
 	globes.append(body)
 	_update_can_add()
 	return body
@@ -175,16 +194,30 @@ func select(body: GlobeBody) -> void:
 	var r := body.globe.globe_radius * maxf(body.globe.stand_bottom_radius, 1.0) * 1.08
 	(_ring.mesh as TorusMesh).inner_radius = r
 	(_ring.mesh as TorusMesh).outer_radius = r + 0.06
-	# A little hop so it's clear which one was picked.
-	if not body.freeze:
-		body.apply_central_impulse(Vector3.UP * 1.2 * body.mass)
+	_ring_alpha = 0.85
 
 
 func save_session() -> void:
 	var list: Array[SnowGlobe] = []
 	for b in globes:
 		list.append(b.globe)
-	GlobePreset.save_session(list)
+	GlobePreset.save_session(list, scene_settings.capture() if scene_settings else {})
+
+
+## Shakes a globe and stirs the room's dust around it.
+func shake_globe(body: GlobeBody, strength := 1.0) -> void:
+	body.shake(strength)
+	if atmosphere:
+		atmosphere.disturb(body.global_position + Vector3.UP * body.globe.glass_center.y, 1.2 * strength)
+
+
+## A globe fell off the shelf: if something now sits on its spot, give it a
+## free one before it drops back in.
+func _on_fell_off(body: GlobeBody) -> void:
+	for other in globes:
+		if other != body and Vector2(other.global_position.x - body.home.x, other.global_position.z - body.home.z).length() < 1.6:
+			body.home = _free_spot(body)
+			return
 
 
 func _on_add_pressed() -> void:
@@ -201,22 +234,25 @@ func _update_can_add() -> void:
 		ui.set_can_add(globes.size() < max_globes)
 
 
-## The spot along the shelf furthest from the other globes.
-func _free_spot() -> Vector3:
-	if globes.is_empty():
+## The spot on the shelf furthest from the other globes (ignoring `skip`).
+func _free_spot(skip: GlobeBody = null) -> Vector3:
+	var others := globes.filter(func(g) -> bool: return g != skip)
+	if others.is_empty():
 		return Vector3.ZERO
 	var best := Vector3.ZERO
-	var best_d := -1.0
-	var span := shelf_half_size.x - 1.2
-	for i in 17:
-		var x := lerpf(-span, span, i / 16.0)
-		var d := INF
-		for g in globes:
-			d = minf(d, absf(g.global_position.x - x))
-		d -= absf(x) * 0.05 # prefer the middle on ties
-		if d > best_d:
-			best_d = d
-			best = Vector3(x, 0, 0)
+	var best_d := -INF
+	var span := shelf_half_size - Vector2(1.3, 1.1)
+	for i in 21:
+		for j in 7:
+			var p := Vector3(lerpf(-span.x, span.x, i / 20.0), 0, lerpf(-span.y, span.y, j / 6.0))
+			var d := INF
+			for g in others:
+				d = minf(d, Vector2(g.global_position.x - p.x, g.global_position.z - p.z).length())
+			# Prefer the front-middle when there's room.
+			d -= Vector2(p.x * 0.06, (p.z + span.y) * 0.1).length()
+			if d > best_d:
+				best_d = d
+				best = p
 	return best
 
 
@@ -229,8 +265,10 @@ func _make_ring() -> MeshInstance3D:
 	mi.scale = Vector3(1, 0.15, 1)
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(0.55, 0.75, 1.0)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.55, 0.75, 1.0, 0.0)
 	mi.material_override = m
+	_ring_mat = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mi
 
@@ -274,7 +312,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.keycode:
 			KEY_SPACE:
 				if selected:
-					selected.shake()
+					shake_globe(selected)
 			KEY_I, KEY_TAB:
 				_set_mode(Mode.SHELF if _mode == Mode.INSPECT else Mode.INSPECT)
 			KEY_V:
@@ -430,16 +468,28 @@ func _try_grab(screen_pos: Vector2) -> bool:
 	# the screen lifts the globe and flicks can throw it.
 	var normal := camera.global_basis.z
 	_grab_plane = Plane(normal, point)
+	_grab_height = point.y
 	body.grab(point)
 	_holding = body
 	return true
 
 
 func _carry_to(screen_pos: Vector2) -> void:
-	var hit = _grab_plane.intersects_ray(camera.project_ray_origin(screen_pos), camera.project_ray_normal(screen_pos))
+	var from := camera.project_ray_origin(screen_pos)
+	var dir := camera.project_ray_normal(screen_pos)
+	var hit = _grab_plane.intersects_ray(from, dir)
 	if hit == null:
 		return
 	var p: Vector3 = hit
+	# The camera-facing plane can't move things toward or away from you; the
+	# more the camera looks down, the more we follow a flat plane instead so
+	# globes can travel across the whole shelf.
+	var down := clampf((-camera.global_basis.z.y - 0.1) / 0.5, 0.0, 1.0)
+	var flat = Plane(Vector3.UP, _grab_height).intersects_ray(from, dir)
+	if down > 0.0 and flat != null:
+		var f: Vector3 = flat
+		p.x = lerpf(p.x, f.x, down)
+		p.z = lerpf(p.z, f.z, down)
 	p.y = clampf(p.y, carry_height.x, carry_height.y)
 	p.x = clampf(p.x, -shelf_half_size.x - 3.0, shelf_half_size.x + 3.0)
 	p.z = clampf(p.z, -shelf_half_size.y - 3.0, shelf_half_size.y + 3.0)

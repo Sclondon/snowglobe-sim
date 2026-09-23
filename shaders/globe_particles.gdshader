@@ -15,6 +15,8 @@ uniform float emission_strength = 0.15;
 uniform float roughness_value : hint_range(0.0, 1.0) = 0.7;
 uniform float metallic_value : hint_range(0.0, 1.0) = 0.0;
 uniform float tumble_speed = 1.5;
+/** Clouds: how solid the puffs are (lower = thinner fog). */
+uniform float cloud_density = 1.0;
 
 varying vec4 custom;
 
@@ -106,7 +108,7 @@ void fragment() {
 		// up by noise, then compared against an ordered-dither threshold so it
 		// stays in the opaque pass (visible through the glass refraction).
 		float n = fract(sin(dot(floor(UV * 6.0) + custom.xy * 17.0, vec2(12.9898, 78.233))) * 43758.5453);
-		float coverage = (1.0 - smoothstep(0.45, 1.0, r)) * (0.85 + 0.15 * n);
+		float coverage = (1.0 - smoothstep(0.45, 1.0, r)) * (0.85 + 0.15 * n) * cloud_density;
 		ivec2 px = ivec2(FRAGCOORD.xy) % 4;
 		int idx = px.x + px.y * 4;
 		float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);

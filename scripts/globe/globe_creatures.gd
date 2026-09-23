@@ -45,6 +45,7 @@ var _spin_axis := PackedVector3Array()
 var _buf := PackedFloat32Array()
 var _rng := RandomNumberGenerator.new()
 var _agitation := 0.0
+var _glow := 0.0
 var _reset_queued := false
 
 
@@ -165,6 +166,10 @@ func _physics_process(delta: float) -> void:
 	_simulate(delta)
 	_write_all()
 	multimesh.buffer = _buf
+	if _sp.shake_glow > 0.0 and material_override:
+		# Glow up when shaken, then calm back down.
+		_glow = maxf(_glow * exp(-0.7 * delta), minf(_globe.agitation, 1.0))
+		(material_override as ShaderMaterial).set_shader_parameter("emission_strength", lerpf(_sp.emission, _sp.shake_glow, _glow))
 
 
 # --- Simulation ---------------------------------------------------------------

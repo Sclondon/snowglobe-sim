@@ -1,0 +1,154 @@
+{
+	"globe": {
+		"base_accent": [
+			0.24,
+			0.12,
+			0.06,
+			1.0
+		],
+		"base_color": [
+			0.5,
+			0.3,
+			0.17,
+			1.0
+		],
+		"base_finish": 0,
+		"base_type": 3,
+		"field_color": [
+			0.35,
+			0.8,
+			1.0,
+			1.0
+		],
+		"fill": 1,
+		"floor_color": [
+			0.2,
+			0.36,
+			0.16,
+			1.0
+		],
+		"floor_depth": 0.6,
+		"floor_type": 2,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 0,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.9,
+			0.95,
+			1.0,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.35,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.12,
+		"shell": 0,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.95,
+			0.75,
+			0.35,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"amount": 36,
+			"kind": "creatures",
+			"name": "Fireflies",
+			"seed": 0,
+			"species": {
+				"accent_color": [
+					0.72,
+					0.76,
+					0.82,
+					1.0
+				],
+				"agility": 2.0,
+				"alignment": 0.05,
+				"anim_speed": 1.0,
+				"body": 4,
+				"cohesion": 0.05,
+				"color": [
+					1.0,
+					0.88,
+					0.3,
+					1.0
+				],
+				"color_variation": 0.1,
+				"detail_color": [
+					0.08,
+					0.07,
+					0.05,
+					1.0
+				],
+				"emission": 0.8,
+				"follow_leader": 0.0,
+				"grip": 1.0,
+				"movement": 1,
+				"neighbor_radius": 4.0,
+				"panic": 0.8,
+				"panic_speed": 3.0,
+				"rest_chance": 0.04,
+				"rest_time": 3.0,
+				"separation": 1.0,
+				"shake_glow": 5.0,
+				"size": 0.09,
+				"size_randomness": 0.25,
+				"speed": 0.14,
+				"touch_response": 0.6,
+				"wander": 1.6
+			}
+		}
+	],
+	"name": "Firefly Meadow",
+	"props": [
+		{
+			"color": "#3f7d3a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "round_tree",
+			"x": -0.35,
+			"z": -0.2
+		},
+		{
+			"color": "#21603a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "pine",
+			"x": 0.4,
+			"z": -0.3
+		},
+		{
+			"color": "#4aa33a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "frog",
+			"x": 0.1,
+			"z": 0.3
+		},
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "rocks",
+			"x": -0.2,
+			"z": 0.35
+		}
+	],
+	"version": 2
+}

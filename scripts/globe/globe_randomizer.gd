@@ -61,6 +61,29 @@ const THEMES := {
 		"layers": [["clouds", 1.0], ["wind", 0.7], ["rain", 0.3]],
 		"tint": Color(0.82, 0.9, 1.0),
 	},
+	"meadow_night": {
+		"weight": 2, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.GRASS, SnowGlobe.FloorType.MOSS],
+		"props": ["round_tree", "pine", "frog", "rocks", "frog"],
+		"layers": [["fireflies", 1.0], ["aurora", 0.6]],
+		"tint": Color(0.8, 0.85, 1.0),
+	},
+	"desert_heat": {
+		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.SAND],
+		"props": ["cactus", "cactus", "rocks", "anthill"],
+		"layers": [["heat", 1.0], ["sunrays", 0.7], ["ants", 0.4]],
+		"tint": Color(1.0, 0.95, 0.85),
+	},
+	"rainbow_garden": {
+		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.GRASS],
+		"props": ["round_tree", "ball", "frog", "ring"],
+		"layers": [["rainbow", 1.0], ["butterflies", 0.7], ["rain", 0.3]],
+	},
+	"pond": {
+		"weight": 1, "fill": SnowGlobe.Fill.WATER, "floors": [SnowGlobe.FloorType.MOSS, SnowGlobe.FloorType.SAND],
+		"props": ["frog", "frog", "seaweed", "rocks", "ball"],
+		"layers": [["bubbles", 1.0], ["sea_monkeys", 0.3]],
+		"tint": Color(0.82, 0.95, 0.9),
+	},
 	"mine": {
 		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.ROCK, SnowGlobe.FloorType.SAND],
 		"props": ["rocks", "rocks", "cactus", "anthill"],
@@ -85,7 +108,14 @@ const LAYERS := {
 	"fireworks": ["fireworks", "", Vector2i.ZERO],
 	"dynamite": ["dynamite", "", Vector2i.ZERO],
 	"cobwebs": ["cobwebs", "", Vector2i.ZERO],
+	"fireflies": ["creatures", "res://creatures/fireflies.tres", Vector2i(18, 40)],
+	"aurora": ["aurora", "", Vector2i.ZERO],
+	"heat": ["heat", "", Vector2i.ZERO],
+	"sunrays": ["sunrays", "", Vector2i.ZERO],
+	"rainbow": ["rainbow", "", Vector2i.ZERO],
 }
+## Shells the themed roll sometimes picks instead of glass.
+const FANCY_SHELLS := [SnowGlobe.Shell.ICE, SnowGlobe.Shell.BUBBLE, SnowGlobe.Shell.WATER, SnowGlobe.Shell.FORCEFIELD, SnowGlobe.Shell.MAGNETIC]
 
 
 static func roll(rng: RandomNumberGenerator) -> Dictionary:
@@ -93,7 +123,18 @@ static func roll(rng: RandomNumberGenerator) -> Dictionary:
 	var theme: Dictionary = THEMES[theme_name]
 	var g := {}
 
-	# Glass.
+	# Glass: mostly middling sizes, now and then a tiny or a big one.
+	var size_roll := rng.randf()
+	if size_roll < 0.15:
+		g["globe_radius"] = rng.randf_range(0.4, 0.65)
+	elif size_roll > 0.87:
+		g["globe_radius"] = rng.randf_range(1.4, 1.9)
+	else:
+		g["globe_radius"] = rng.randf_range(0.8, 1.2)
+	g["shell"] = SnowGlobe.Shell.GLASS if rng.randf() < 0.7 else FANCY_SHELLS[rng.randi() % FANCY_SHELLS.size()]
+	if theme_name == "plasma" and rng.randf() < 0.5:
+		g["shell"] = [SnowGlobe.Shell.FORCEFIELD, SnowGlobe.Shell.MAGNETIC][rng.randi() % 2]
+	g["field_color"] = Color.from_hsv(rng.randf_range(0.45, 0.8), 0.6, 1.0)
 	var shapes := [0, 0, 0, 1, 1, 2, 3, 4, 5, 6]
 	var shape: int = shapes[rng.randi() % shapes.size()]
 	g["glass_shape"] = shape
@@ -105,13 +146,13 @@ static func roll(rng: RandomNumberGenerator) -> Dictionary:
 	g["glass_distortion"] = rng.randf_range(0.0, 0.3)
 	g["magnification"] = rng.randf_range(1.1, 1.3)
 	g["fill"] = theme["fill"]
-	var tint: Color = theme.get("tint", Color(0.93, 0.97, 1.0))
+	var tint: Color = theme.get("tint", SnowGlobe.SHELL_TINTS[g["shell"]])
 	g["glass_tint"] = tint.lerp(Color.from_hsv(rng.randf(), 0.12, 1.0), 0.3)
 	g["glass_edge_tint"] = Color(g["glass_tint"]).darkened(0.3)
 
 	# Stand.
 	var r := rng.randf()
-	g["base_type"] = GlobeBase.Kind.PEDESTAL if r < 0.6 else (GlobeBase.Kind.LEGS if r < 0.85 else GlobeBase.Kind.NONE)
+	g["base_type"] = GlobeBase.Kind.PEDESTAL if r < 0.5 else (GlobeBase.Kind.LEGS if r < 0.68 else (GlobeBase.Kind.PLATFORM if r < 0.86 else GlobeBase.Kind.NONE))
 	var finish := rng.randi() % GlobeBase.FINISH_NAMES.size()
 	g["base_finish"] = finish
 	var colors: Array = GlobeBase.FINISH_COLORS[finish]
@@ -158,6 +199,9 @@ static func roll_chaos(rng: RandomNumberGenerator) -> Dictionary:
 	var data := roll(rng)
 	var g: Dictionary = data["globe"]
 	g["glass_shape"] = rng.randi() % GlassShape.KIND_NAMES.size()
+	g["shell"] = rng.randi() % SnowGlobe.SHELL_NAMES.size()
+	g["globe_radius"] = rng.randf_range(0.4, 1.9)
+	g["base_type"] = rng.randi() % GlobeBase.KIND_NAMES.size()
 	g["glass_width"] = rng.randf_range(0.7, 1.4)
 	g["glass_height"] = rng.randf_range(0.7, 1.6)
 	g["floor_depth"] = clampf(GlassShape.DEFAULT_FLOOR_DEPTH[g["glass_shape"]] + rng.randf_range(-0.15, 0.1), 0.25, 0.85)

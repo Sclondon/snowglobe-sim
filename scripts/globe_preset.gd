@@ -18,13 +18,16 @@ const MAX_LAYERS := 8
 ## SnowGlobe properties that make up its look.
 const GLOBE_PROPERTIES: Array[String] = [
 	"globe_radius", "glass_shape", "glass_width", "glass_height", "glass_facets", "floor_depth",
-	"glass_thickness", "glass_distortion", "magnification", "glass_tint", "glass_edge_tint", "fill",
+	"glass_thickness", "glass_distortion", "magnification", "glass_tint", "glass_edge_tint", "fill", "shell", "field_color",
 	"base_type", "base_finish", "base_color", "base_accent", "trim_color",
 	"stand_sides", "stand_height", "stand_bottom_radius", "leg_count", "leg_clearance",
 	"floor_type", "floor_color", "mound_height", "snow_bumpiness", "snow_seed",
 ]
 ## Version 1 names for globe properties.
 const LEGACY_NAMES := {"wood_light": "base_color", "wood_dark": "base_accent", "snow_color": "floor_color"}
+## Settings newer than some saved presets: when a preset leaves them out they
+## go back to their defaults rather than keeping whatever the globe had.
+const LATER_PROPERTIES: Array[String] = ["shell", "field_color"]
 
 
 # --- Capture / apply ----------------------------------------------------------
@@ -71,6 +74,9 @@ static func apply(globe: SnowGlobe, data: Dictionary) -> void:
 	for old in LEGACY_NAMES:
 		if g.has(old) and not g.has(LEGACY_NAMES[old]):
 			g[LEGACY_NAMES[old]] = g[old]
+	for prop in LATER_PROPERTIES:
+		if not g.has(prop):
+			globe.set(prop, globe.get_script().get_property_default_value(prop))
 	for prop in GLOBE_PROPERTIES:
 		if g.has(prop):
 			var v = _decode(g[prop], globe.get(prop))
@@ -170,6 +176,10 @@ static func new_settings_layer(kind: String) -> Node3D:
 		"fireworks": return GlobeFireworks.new()
 		"dynamite": return GlobeDynamite.new()
 		"cobwebs": return GlobeCobwebs.new()
+		"aurora": return GlobeAurora.new()
+		"heat": return GlobeHeat.new()
+		"sunrays": return GlobeSunrays.new()
+		"rainbow": return GlobeRainbow.new()
 	return null
 
 
@@ -324,12 +334,18 @@ static func delete_user(path: String) -> void:
 		DirAccess.remove_absolute(path)
 
 
-## Saves every globe on the shelf (session format 3).
-static func save_session(globes: Array[SnowGlobe]) -> void:
+## Saves every globe on the shelf plus the room settings (session format 3).
+static func save_session(globes: Array[SnowGlobe], scene := {}) -> void:
 	var list := []
 	for g in globes:
 		list.append(capture(g, "Globe"))
-	_write(LAST_SESSION_PATH, {"version": 3, "globes": list})
+	_write(LAST_SESSION_PATH, {"version": 3, "globes": list, "scene": scene})
+
+
+## The room settings saved with the last session ({} if none).
+static func load_session_scene() -> Dictionary:
+	var s = load_file(LAST_SESSION_PATH).get("scene", {})
+	return s if s is Dictionary else {}
 
 
 ## The globes of the last session as preset dictionaries (older sessions,

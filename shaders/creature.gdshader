@@ -4,7 +4,7 @@
 // state: 0 moving, 1 resting, 2 tumbling.
 shader_type spatial;
 
-/** 0 = sea monkey, 1 = butterfly, 2 = ant, 3 = person. */
+/** 0 = sea monkey, 1 = butterfly, 2 = ant, 3 = person, 4 = firefly. */
 uniform int body = 0;
 uniform vec4 accent_color : source_color = vec4(1.0, 0.55, 0.45, 1.0);
 uniform vec4 detail_color : source_color = vec4(0.08, 0.06, 0.06, 1.0);
@@ -12,6 +12,7 @@ uniform float emission_strength = 0.1;
 uniform float roughness_value : hint_range(0.0, 1.0) = 0.6;
 
 varying float part;
+varying float blink;
 
 // Rotates p about the X axis around height `pivot_y`.
 vec3 swing_x(vec3 p, float pivot_y, float a) {
@@ -21,6 +22,7 @@ vec3 swing_x(vec3 p, float pivot_y, float a) {
 
 void vertex() {
 	part = UV2.x;
+	blink = 0.55 + 0.45 * sin(TIME * (1.5 + INSTANCE_CUSTOM.z * 2.0) + INSTANCE_CUSTOM.z * 40.0);
 	float ph = INSTANCE_CUSTOM.x;
 	float state = INSTANCE_CUSTOM.y;
 	float amount = INSTANCE_CUSTOM.w;
@@ -28,9 +30,15 @@ void vertex() {
 		// Tail waggle, growing toward the back.
 		float w = clamp(0.25 - VERTEX.z * 1.6, 0.0, 1.0);
 		VERTEX.x += sin(ph - VERTEX.z * 5.0) * 0.14 * w * amount;
-	} else if (body == 1) {
-		// Wings (body / accent parts away from the centre) flap upward.
-		if (part < 1.5 && abs(VERTEX.x) > 0.03) {
+	} else if (body == 1 || body == 4) {
+		// Wings flap upward (butterflies: body + accent parts; fireflies:
+		// just the accent wings, fast and small).
+		bool wing = body == 1 ? (part < 1.5 && abs(VERTEX.x) > 0.03) : (part > 0.5 && part < 1.5);
+		if (body == 4) {
+			ph *= 3.0;
+			amount *= 0.6;
+		}
+		if (wing) {
 			float a = state > 0.5 && state < 1.5
 				? 1.25 + 0.15 * sin(ph)
 				: (0.15 + 0.95 * (0.5 + 0.5 * sin(ph))) * amount;
@@ -55,9 +63,15 @@ void vertex() {
 	}
 }
 
+
 void fragment() {
 	vec3 col = part < 0.5 ? COLOR.rgb : (part < 1.5 ? accent_color.rgb : detail_color.rgb);
 	ALBEDO = col;
 	ROUGHNESS = roughness_value;
-	EMISSION = col * emission_strength;
+	if (body == 4) {
+		// Only the tail glows, blinking gently out of step with the others.
+		EMISSION = part < 0.5 ? col * emission_strength * blink : vec3(0.0);
+	} else {
+		EMISSION = col * emission_strength;
+	}
 }

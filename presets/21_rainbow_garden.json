@@ -1,0 +1,193 @@
+{
+	"globe": {
+		"base_accent": [
+			0.24,
+			0.12,
+			0.06,
+			1.0
+		],
+		"base_color": [
+			0.95,
+			0.95,
+			0.92,
+			1.0
+		],
+		"base_finish": 2,
+		"base_type": 0,
+		"field_color": [
+			0.9,
+			0.55,
+			1.0,
+			1.0
+		],
+		"fill": 1,
+		"floor_color": [
+			0.3,
+			0.55,
+			0.22,
+			1.0
+		],
+		"floor_depth": 0.6,
+		"floor_type": 2,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 0,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.97,
+			0.97,
+			1.0,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.12,
+		"shell": 6,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.95,
+			0.75,
+			0.35,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"kind": "rainbow",
+			"name": "Rainbow",
+			"settings": {
+				"arc_size": 0.75,
+				"band_width": 0.16,
+				"brightness": 1.2,
+				"fade_cycle": true,
+				"opacity": 0.9,
+				"turn": 0.0
+			}
+		},
+		{
+			"amount": 10,
+			"kind": "creatures",
+			"name": "Butterflies",
+			"seed": 0,
+			"species": {
+				"accent_color": [
+					0.2,
+					0.15,
+					0.6,
+					1.0
+				],
+				"agility": 3.0,
+				"alignment": 0.2,
+				"anim_speed": 1.0,
+				"body": 1,
+				"cohesion": 0.1,
+				"color": [
+					1.0,
+					0.6,
+					0.1,
+					1.0
+				],
+				"color_variation": 0.9,
+				"detail_color": [
+					0.05,
+					0.04,
+					0.04,
+					1.0
+				],
+				"emission": 0.05,
+				"follow_leader": 0.0,
+				"grip": 1.0,
+				"movement": 1,
+				"neighbor_radius": 4.0,
+				"panic": 1.5,
+				"panic_speed": 2.5,
+				"rest_chance": 0.12,
+				"rest_time": 4.0,
+				"separation": 1.5,
+				"shake_glow": 0.0,
+				"size": 0.12,
+				"size_randomness": 0.2,
+				"speed": 0.4,
+				"touch_response": 0.6,
+				"wander": 1.0
+			}
+		},
+		{
+			"amount": 150,
+			"kind": "particles",
+			"name": "Rain",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.7,
+					0.82,
+					1.0,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 0.5,
+				"emission": 0.4,
+				"gravity": 3.0,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": true,
+				"pop_delay": 0.0,
+				"restitution": 0.0,
+				"roughness": 0.2,
+				"shake_response": 0.08,
+				"shake_turbulence": 0.4,
+				"shape": 3,
+				"size": 0.012,
+				"size_randomness": 0.3,
+				"stickiness": 30.0,
+				"stretch": 0.12,
+				"swirl_response": 0.6,
+				"tumble_speed": 0.0,
+				"turbulence": 0.02,
+				"wind": 0.0
+			}
+		}
+	],
+	"name": "Rainbow Garden",
+	"props": [
+		{
+			"color": "#3f7d3a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "round_tree",
+			"x": -0.35,
+			"z": -0.25
+		},
+		{
+			"color": "#e8b030",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "ball",
+			"x": 0.3,
+			"z": 0.2
+		},
+		{
+			"color": "#4aa33a",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "frog",
+			"x": -0.1,
+			"z": 0.3
+		}
+	],
+	"version": 2
+}

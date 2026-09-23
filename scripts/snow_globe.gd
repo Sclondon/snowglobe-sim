@@ -19,9 +19,14 @@ extends Node3D
 signal rebuilt
 
 enum Fill { WATER, AIR }
+## What the shell is made of (values match shell_mode in glass_common.gdshaderinc).
+enum Shell { GLASS, ICE, BUBBLE, WATER, NONE, FORCEFIELD, MAGNETIC }
 enum FloorType { SNOW, SAND, GRASS, MOSS, ROCK }
 
 const FILL_NAMES := ["Water", "Air"]
+const SHELL_NAMES := ["Glass", "Ice", "Soap bubble", "Water", "Nothing", "Force field", "Magnetic field"]
+## Tint that suits each shell (used when the shell is changed in the editor).
+const SHELL_TINTS := [Color(0.93, 0.97, 1.0), Color(0.9, 0.97, 1.0), Color(1, 1, 1), Color(0.8, 0.95, 0.95), Color(1, 1, 1), Color(0.9, 0.97, 1.0), Color(0.97, 0.97, 1.0)]
 const FLOOR_NAMES := ["Snow", "Sand", "Grass", "Moss", "Rock"]
 const FLOOR_COLORS := [Color(0.8, 0.83, 0.88), Color(0.76, 0.66, 0.46), Color(0.3, 0.5, 0.22), Color(0.25, 0.36, 0.2), Color(0.42, 0.41, 0.39)]
 const FLOOR_ROUGHNESS := [0.85, 1.0, 0.95, 1.0, 0.9]
@@ -61,6 +66,12 @@ const MAX_PROPS := 16
 ## What the globe is filled with. Air: things fall fast, no water lens.
 @export var fill := Fill.WATER:
 	set(v): fill = v; _update_materials()
+## What the shell is made of.
+@export var shell := Shell.GLASS:
+	set(v): shell = v; _update_materials()
+## Glow colour for the force-field and magnetic-field shells.
+@export var field_color := Color(0.35, 0.8, 1.0):
+	set(v): field_color = v; _update_materials()
 
 @export_group("Stand")
 @export var base_type := GlobeBase.Kind.PEDESTAL:
@@ -161,6 +172,12 @@ var _sway_velocity := Vector2.ZERO
 var _shake_time := -1.0
 var _shake_strength := 0.0
 var _noise: FastNoiseLite
+var _loose := LooseProps.new()
+## How stirred up the globe is (0 calm .. ~1.5 hard shake), decaying.
+var agitation := 0.0
+var _heat := 0.0
+var _prop_sway := Vector3.ZERO
+var _prop_sway_vel := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -214,6 +231,8 @@ func get_obstacles() -> Array[Vector4]:
 	var fr := get_floor_radius()
 	for p in props:
 		var inf := PropLibrary.info(String(p.get("type", "pine")))
+		if inf.get("loose", false):
+			continue
 		var s := float(p.get("scale", 1.0)) * globe_radius
 		var x := float(p.get("x", 0.0)) * fr
 		var z := float(p.get("z", 0.0)) * fr
@@ -226,6 +245,20 @@ func set_inside_view(on: bool) -> void:
 	_inside_view = on
 	if _glass_node:
 		_glass_node.material_override = _glass_inside_mat if on else _glass_mat
+
+
+## Height of the platform stand's top (globe-local).
+func platform_top() -> float:
+	return globe_radius * (0.25 + leg_clearance)
+
+
+func platform_radius() -> float:
+	return globe_radius * stand_bottom_radius * 0.95
+
+
+## Heat shimmer strength for the shell (set by a Heat waves layer).
+func set_heat(amount: float) -> void:
+	_heat = amount
 
 
 ## Moves the globe so the glass's centre ends up at a world point.
@@ -280,6 +313,7 @@ func props_changed() -> void:
 	for c in _props_root.get_children():
 		c.queue_free()
 	_prop_nodes.clear()
+	_loose.clear()
 	var fr := get_floor_radius()
 	for i in mini(props.size(), MAX_PROPS):
 		var p: Dictionary = props[i]
@@ -289,6 +323,9 @@ func props_changed() -> void:
 		_props_root.add_child(node)
 		_prop_nodes.append(node)
 		_place_prop(i, fr)
+		if PropLibrary.info(type).get("loose", false):
+			node.set_meta(&"loose_index", _loose.nodes.size())
+			_loose.add(node, type, float(p.get("scale", 1.0)) * globe_radius, _start_spot(p, fr), node.get_meta(&"base_rot"))
 
 
 ## Moves prop `index` to floor-relative (x, z) without rebuilding it.
@@ -300,6 +337,16 @@ func move_prop(index: int, x: float, z: float) -> void:
 	props[index]["x"] = v.x
 	props[index]["z"] = v.y
 	_place_prop(index, get_floor_radius())
+	if index < _prop_nodes.size() and _prop_nodes[index].has_meta(&"loose_index"):
+		var p: Dictionary = props[index]
+		_loose.reset(_prop_nodes[index].get_meta(&"loose_index"), _start_spot(p, get_floor_radius()), deg_to_rad(float(p.get("rot", 0.0))))
+
+
+## Where a loose prop starts (globe-local), just above the floor.
+func _start_spot(p: Dictionary, fr: float) -> Vector3:
+	var x := float(p.get("x", 0.0)) * fr
+	var z := float(p.get("z", 0.0)) * fr
+	return Vector3(x, get_floor_height(x, z) + globe_radius * 0.06, z)
 
 
 func _place_prop(i: int, fr: float) -> void:
@@ -312,14 +359,59 @@ func _place_prop(i: int, fr: float) -> void:
 	node.position = Vector3(x, get_floor_height(x, z) - 0.005 * globe_radius, z)
 	node.rotation.y = deg_to_rad(float(p.get("rot", 0.0)))
 	node.scale = Vector3.ONE * float(p.get("scale", 1.0)) * globe_radius
+	node.set_meta(&"base_rot", node.rotation.y)
 
 
 # --- Motion ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	# Inside a GlobeBody, physics moves the globe and fills in the motion data.
-	if Engine.is_editor_hint() or delta <= 0.0 or get_parent() is GlobeBody:
+	if Engine.is_editor_hint() or delta <= 0.0:
 		return
+	_react(delta)
+	# Inside a GlobeBody, physics moves the globe and fills in the motion data.
+	if get_parent() is GlobeBody:
+		return
+	_self_move(delta)
+
+
+## Things that respond to the globe's motion: the shell's shimmer, props
+## leaning and swaying, loose props bouncing about.
+func _react(delta: float) -> void:
+	var kick := minf(linear_acceleration.length() * 0.01 + angular_velocity.length() * 0.15, 2.0)
+	agitation = maxf(agitation * exp(-2.0 * delta), kick)
+	if _glass_mat:
+		for m in [_glass_mat, _glass_inside_mat]:
+			m.set_shader_parameter("agitation", agitation)
+			m.set_shader_parameter("heat", _heat)
+			m.set_shader_parameter("touch_on", 1.0 if touch_active else 0.0)
+			m.set_shader_parameter("touch_local", touch_point - glass_center)
+	# Props lean away from acceleration on a springy stem, then swing back.
+	var inv := global_basis.orthonormalized().inverse()
+	var push := -(inv * linear_acceleration) * 0.004
+	push.y = 0.0
+	push = push.limit_length(0.6)
+	_prop_sway_vel += ((push - _prop_sway) * 40.0 - _prop_sway_vel * 4.0) * delta
+	_prop_sway += _prop_sway_vel * delta
+	var world_push := global_basis * _prop_sway * globe_radius * 0.25
+	for i in _prop_nodes.size():
+		var node := _prop_nodes[i]
+		if node.has_meta(&"loose_index") or i >= props.size():
+			continue
+		var flex := float(PropLibrary.info(String(props[i].get("type", ""))).get("flex", 0.0))
+		if flex <= 0.0:
+			continue
+		if node.has_meta(&"sway_material"):
+			(node.get_meta(&"sway_material") as ShaderMaterial).set_shader_parameter("push", world_push)
+		else:
+			var tilt := Vector3(_prop_sway.z, 0, -_prop_sway.x) * flex
+			var b := Basis(Vector3.UP, float(node.get_meta(&"base_rot", 0.0)))
+			if tilt.length_squared() > 1e-8:
+				b = Basis(tilt.normalized(), tilt.length()) * b
+			node.basis = b.scaled(Vector3.ONE * float(props[i].get("scale", 1.0)) * globe_radius)
+	_loose.step(self, delta, agitation)
+
+
+func _self_move(delta: float) -> void:
 	var goal_center := target_position + Vector3.UP * glass_center.y
 	if _shake_time >= 0.0:
 		# A decaying side-to-side wobble with a little bounce.
@@ -365,6 +457,9 @@ func _layout() -> void:
 			cy = globe_radius * stand_height - _shape.floor_y
 		GlobeBase.Kind.LEGS:
 			cy = globe_radius * leg_clearance - _shape.y_min
+		GlobeBase.Kind.PLATFORM:
+			# The glass stands on the slab.
+			cy = platform_top() - _shape.y_min
 		_:
 			cy = -_shape.y_min
 	glass_center = Vector3(0, cy, 0)
@@ -396,6 +491,8 @@ func _rebuild() -> void:
 			_generated.add_child(GlobeBase.build_pedestal(stand_sides, h, globe_radius * stand_bottom_radius, top * 1.06, _stand_mat))
 		GlobeBase.Kind.LEGS:
 			_generated.add_child(GlobeBase.build_legs(leg_count, floor_y, fr, globe_radius, _stand_mat, _trim_mat))
+		GlobeBase.Kind.PLATFORM:
+			_generated.add_child(GlobeBase.build_platform(stand_sides, platform_top(), platform_radius(), globe_radius, _stand_mat, _trim_mat))
 
 	var under := MeshInstance3D.new()
 	under.name = "UnderFloor"
@@ -420,6 +517,7 @@ func _rebuild() -> void:
 	glass.name = "Glass"
 	glass.mesh = _shape.build_mesh()
 	glass.material_override = _glass_inside_mat if _inside_view else _glass_mat
+	glass.visible = shell != Shell.NONE
 	_glass_node = glass
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glass.position = glass_center
@@ -453,9 +551,13 @@ func _update_materials() -> void:
 	_glass_mat.set_shader_parameter("rim_bend", glass_distortion)
 	_glass_mat.set_shader_parameter("thickness", glass_thickness)
 	_glass_mat.set_shader_parameter("glass_size", globe_radius)
+	_glass_mat.set_shader_parameter("shell_mode", int(shell))
+	_glass_mat.set_shader_parameter("field_color", field_color)
+	if _glass_node:
+		_glass_node.visible = shell != Shell.NONE
 	_glass_mat.set_shader_parameter("edge_highlight", 0.6 if get_container().flat_shaded else 0.0)
 	# From inside: same glass, but no water lens.
-	for p in ["tint", "edge_tint", "thickness", "glass_size", "edge_highlight"]:
+	for p in ["tint", "edge_tint", "thickness", "glass_size", "edge_highlight", "shell_mode", "field_color"]:
 		_glass_inside_mat.set_shader_parameter(p, _glass_mat.get_shader_parameter(p))
 	_glass_inside_mat.set_shader_parameter("magnification", 1.0)
 	_glass_inside_mat.set_shader_parameter("rim_bend", 0.0)

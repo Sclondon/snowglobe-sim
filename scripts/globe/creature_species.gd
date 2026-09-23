@@ -9,6 +9,7 @@ enum Body {
 	BUTTERFLY, ## Flapping wings.
 	ANT, ## Three body segments and scuttling legs.
 	PERSON, ## Tiny figure that walks with swinging arms and legs.
+	FIREFLY, ## Tiny flier with a glowing tail.
 }
 enum Movement {
 	SWIM, ## Schools through the fill; stranded and flopping in air.
@@ -38,6 +39,8 @@ enum Movement {
 	set(v): detail_color = v; emit_changed()
 @export_range(0.0, 3.0, 0.01) var emission := 0.1:
 	set(v): emission = v; emit_changed()
+## Glow right after the globe is shaken (fades back to `emission`).
+@export_range(0.0, 8.0, 0.01) var shake_glow := 0.0
 @export_range(0.1, 4.0, 0.01) var anim_speed := 1.0:
 	set(v): anim_speed = v; emit_changed()
 

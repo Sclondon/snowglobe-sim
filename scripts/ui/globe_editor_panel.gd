@@ -13,7 +13,7 @@ signal props_tab_toggled(active: bool)
 ## "Remove this globe" was pressed.
 signal remove_globe_requested
 
-enum Tab { GLOBE, CONTENTS, PROPS, PRESETS }
+enum Tab { GLOBE, CONTENTS, PROPS, PRESETS, SCENE }
 
 const PARTICLE_LOOK := [
 	["size", "Size", 0.005, 0.15, 0.001],
@@ -46,6 +46,7 @@ const CREATURE_LOOK := [
 	["accent_color", "Accent"],
 	["detail_color", "Detail"],
 	["emission", "Glow", 0.0, 2.0, 0.01],
+	["shake_glow", "Glow when shaken", 0.0, 8.0, 0.05],
 	["anim_speed", "Animation speed", 0.1, 4.0, 0.01],
 ]
 const CREATURE_BEHAVIOUR := [
@@ -66,7 +67,7 @@ const WALKER_BEHAVIOUR := [
 	["follow_leader", "Follow the leader", 0.0, 1.0, 0.01],
 ]
 const SHAPE_NAMES := ["Snowflake", "Bubble", "Glitter", "Rain / streak", "Dust mote", "Cloud"]
-const BODY_NAMES := ["Sea monkey", "Butterfly", "Ant", "Person"]
+const BODY_NAMES := ["Sea monkey", "Butterfly", "Ant", "Person", "Firefly"]
 const MOVEMENT_NAMES := ["Swim", "Fly", "Walk"]
 ## "+ Add" menu: label → [kind, preset path, amount].
 const NEW_LAYERS := {
@@ -81,13 +82,20 @@ const NEW_LAYERS := {
 	"Butterflies": ["creatures", "res://creatures/butterflies.tres", 20],
 	"Ants": ["creatures", "res://creatures/ants.tres", 40],
 	"People": ["creatures", "res://creatures/people.tres", 12],
+	"Fireflies": ["creatures", "res://creatures/fireflies.tres", 30],
 	"Plasma": ["plasma", "", 0],
 	"Fireworks": ["fireworks", "", 0],
 	"Dynamite": ["dynamite", "", 0],
 	"Cobwebs": ["cobwebs", "", 0],
+	"Aurora": ["aurora", "", 0],
+	"Heat waves": ["heat", "", 0],
+	"Sun rays": ["sunrays", "", 0],
+	"Rainbow": ["rainbow", "", 0],
 }
 
 var globe: SnowGlobe
+## Room settings (lighting, tablecloth, dust, fog) for the Scene tab.
+var scene_settings: SceneSettings
 ## Index into globe.props of the prop being edited (-1 = none).
 var selected_prop := -1
 
@@ -96,6 +104,7 @@ var _globe_box: VBoxContainer
 var _contents_box: VBoxContainer
 var _props_box: VBoxContainer
 var _presets_box: VBoxContainer
+var _scene_box: VBoxContainer
 var _layer_index := 0
 var _preset_name: LineEdit
 var _status: Label
@@ -124,6 +133,7 @@ func _ready() -> void:
 	_contents_box = _add_tab("Contents")
 	_props_box = _add_tab("Props")
 	_presets_box = _add_tab("Presets")
+	_scene_box = _add_tab("Scene")
 	_tabs.tab_changed.connect(func(t: int) -> void: props_tab_toggled.emit(t == Tab.PROPS and is_visible_in_tree()))
 	visibility_changed.connect(func() -> void: props_tab_toggled.emit(_tabs.current_tab == Tab.PROPS and is_visible_in_tree()))
 
@@ -141,6 +151,7 @@ func refresh() -> void:
 	_build_contents_tab()
 	_build_props_tab()
 	_build_presets_tab()
+	_build_scene_tab()
 
 
 ## Replaces the globe with a randomly rolled one (see GlobeRandomizer).
@@ -201,8 +212,14 @@ func _build_globe_tab() -> void:
 		globe.glass_shape = i as GlassShape.Kind
 		globe.floor_depth = GlassShape.DEFAULT_FLOOR_DEPTH[i]
 		rebuild.call())
+	_option(box, "Shell", SnowGlobe.SHELL_NAMES, globe.shell, func(i: int) -> void:
+		globe.shell = i as SnowGlobe.Shell
+		globe.glass_tint = SnowGlobe.SHELL_TINTS[i]
+		rebuild.call())
+	if globe.shell in [SnowGlobe.Shell.FORCEFIELD, SnowGlobe.Shell.MAGNETIC]:
+		_rows(box, [["field_color", "Field colour"]], globe)
 	_rows(box, [
-		["globe_radius", "Size", 0.6, 1.6, 0.01],
+		["globe_radius", "Size", 0.35, 2.2, 0.01],
 		["glass_width", "Width", 0.6, 1.6, 0.01],
 		["glass_height", "Height", 0.6, 1.8, 0.01],
 	], globe)
@@ -230,7 +247,13 @@ func _build_globe_tab() -> void:
 			globe.base_color = GlobeBase.FINISH_COLORS[i][0]
 			globe.base_accent = GlobeBase.FINISH_COLORS[i][1]
 			rebuild.call())
-		if globe.base_type == GlobeBase.Kind.PEDESTAL:
+		if globe.base_type == GlobeBase.Kind.PLATFORM:
+			_rows(box, [
+				["stand_sides", "Sides", 3, 12, 1],
+				["stand_bottom_radius", "Platform width", 0.7, 1.6, 0.01],
+				["leg_clearance", "Leg height", 0.05, 0.8, 0.01],
+			], globe)
+		elif globe.base_type == GlobeBase.Kind.PEDESTAL:
 			_rows(box, [
 				["stand_sides", "Sides", 3, 24, 1],
 				["stand_height", "Height", 0.2, 1.2, 0.01],
@@ -496,6 +519,22 @@ func _build_props_tab() -> void:
 		selected_prop = -1
 		_changed()
 		_build_props_tab.call_deferred())
+
+
+# --- Scene tab ------------------------------------------------------------------
+
+func _build_scene_tab() -> void:
+	_clear(_scene_box)
+	if scene_settings == null:
+		return
+	_hint(_scene_box, "These apply to the whole room, not just the selected globe.")
+	_heading(_scene_box, "Lighting")
+	_option(_scene_box, "Light", SceneLighting.MODE_NAMES, scene_settings.lighting, func(i: int) -> void:
+		scene_settings.lighting = i as SceneLighting.Mode)
+	_option(_scene_box, "Tablecloth pattern", Tablecloth.PATTERN_NAMES, scene_settings.cloth_pattern, func(i: int) -> void:
+		scene_settings.cloth_pattern = i as Tablecloth.Pattern)
+	_heading(_scene_box, "Room")
+	_rows(_scene_box, SceneSettings.EDITOR_ROWS, scene_settings)
 
 
 # --- Presets tab --------------------------------------------------------------

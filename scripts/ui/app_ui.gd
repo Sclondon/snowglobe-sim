@@ -146,6 +146,11 @@ func set_globe(g: SnowGlobe) -> void:
 		_panel.refresh()
 
 
+## The room settings the editor's Scene tab edits.
+func set_scene_settings(settings: SceneSettings) -> void:
+	_panel.scene_settings = settings
+
+
 ## Whether another globe fits on the shelf.
 func set_can_add(can_add: bool) -> void:
 	_add_button.disabled = not can_add
