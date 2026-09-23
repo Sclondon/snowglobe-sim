@@ -13,6 +13,8 @@ OUT=build/web
 
 echo "Exporting web build..."
 mkdir -p "$OUT"
+# Keep Godot from importing the exported files back into the project.
+touch build/.gdignore
 "$GODOT" --headless --path . --import < /dev/null > /dev/null 2>&1 || true
 "$GODOT" --headless --path . --export-release "Web" "$OUT/index.html" < /dev/null > /dev/null 2>&1
 test -f "$OUT/index.wasm" || { echo "Export failed (no index.wasm)."; exit 1; }
@@ -31,6 +33,7 @@ fi
 # Replace the site's contents with the fresh build.
 find "$WORK" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 cp -r "$OUT"/. "$WORK"/
+rm -f "$WORK"/*.import
 touch "$WORK/.nojekyll"
 git -C "$WORK" add -A
 if git -C "$WORK" diff --cached --quiet; then
