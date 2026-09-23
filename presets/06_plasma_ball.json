@@ -1,0 +1,90 @@
+{
+	"globe": {
+		"base_accent": [
+			0.25,
+			0.25,
+			0.3,
+			1.0
+		],
+		"base_color": [
+			0.1,
+			0.1,
+			0.12,
+			1.0
+		],
+		"base_finish": 1,
+		"base_type": 0,
+		"fill": 1,
+		"floor_color": [
+			0.1,
+			0.1,
+			0.12,
+			1.0
+		],
+		"floor_depth": 0.75,
+		"floor_type": 4,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.45,
+			0.3,
+			0.7,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 0,
+		"glass_thickness": 0.35,
+		"glass_tint": [
+			0.62,
+			0.55,
+			0.78,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.0,
+		"snow_bumpiness": 0.0,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.6,
+		"stand_sides": 32,
+		"trim_color": [
+			0.5,
+			0.4,
+			0.8,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"kind": "plasma",
+			"name": "Plasma",
+			"settings": {
+				"arc_color": [
+					0.72,
+					0.42,
+					1.0,
+					1.0
+				],
+				"arc_count": 7,
+				"arc_width": 0.012,
+				"brightness": 1.0,
+				"core_color": [
+					1.0,
+					0.92,
+					1.0,
+					1.0
+				],
+				"electrode_size": 0.11,
+				"jitter": 0.7,
+				"wander_speed": 0.5
+			}
+		}
+	],
+	"name": "Plasma Ball",
+	"props": [],
+	"version": 2
+}

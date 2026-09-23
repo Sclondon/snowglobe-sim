@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CreatureSpecies" format=3]
+
+[ext_resource type="Script" path="res://scripts/globe/creature_species.gd" id="1_sp"]
+
+[resource]
+script = ExtResource("1_sp")
+body = 0
+size = 0.08
+color = Color(1, 0.74, 0.62, 1)
+color_variation = 0.2
+accent_color = Color(1, 0.5, 0.4, 1)
+emission = 0.15
+movement = 0
+speed = 0.3
+panic = 1.2
+touch_response = 1.0

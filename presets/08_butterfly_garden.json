@@ -1,0 +1,138 @@
+{
+	"globe": {
+		"base_accent": [
+			0.5,
+			0.4,
+			0.2,
+			1.0
+		],
+		"base_color": [
+			0.85,
+			0.7,
+			0.35,
+			1.0
+		],
+		"base_finish": 1,
+		"base_type": 1,
+		"fill": 1,
+		"floor_color": [
+			0.3,
+			0.5,
+			0.22,
+			1.0
+		],
+		"floor_depth": 0.35,
+		"floor_type": 2,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 10,
+		"glass_height": 1.1,
+		"glass_shape": 2,
+		"glass_thickness": 0.3,
+		"glass_tint": [
+			0.93,
+			0.97,
+			1.0,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.1,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.95,
+			0.8,
+			0.4,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"amount": 20,
+			"kind": "creatures",
+			"name": "Butterflies",
+			"seed": 0,
+			"species": {
+				"accent_color": [
+					0.2,
+					0.15,
+					0.6,
+					1.0
+				],
+				"agility": 3.0,
+				"alignment": 0.2,
+				"anim_speed": 1.0,
+				"body": 1,
+				"cohesion": 0.1,
+				"color": [
+					1.0,
+					0.6,
+					0.1,
+					1.0
+				],
+				"color_variation": 0.9,
+				"detail_color": [
+					0.05,
+					0.04,
+					0.04,
+					1.0
+				],
+				"emission": 0.05,
+				"follow_leader": 0.0,
+				"grip": 1.0,
+				"movement": 1,
+				"neighbor_radius": 4.0,
+				"panic": 1.5,
+				"panic_speed": 2.5,
+				"rest_chance": 0.12,
+				"rest_time": 4.0,
+				"separation": 1.5,
+				"size": 0.12,
+				"size_randomness": 0.2,
+				"speed": 0.4,
+				"touch_response": 0.6,
+				"wander": 1.0
+			}
+		}
+	],
+	"name": "Butterfly Garden",
+	"props": [
+		{
+			"color": "#3f7d3a",
+			"rot": 0.0,
+			"scale": 0.9,
+			"type": "round_tree",
+			"x": 0.0,
+			"z": 0.0
+		},
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 0.7,
+			"type": "rocks",
+			"x": 0.5,
+			"z": 0.3
+		},
+		{
+			"color": "#4f8a3a",
+			"rot": 0.0,
+			"scale": 0.6,
+			"type": "cactus",
+			"x": -0.5,
+			"z": -0.3
+		}
+	],
+	"version": 2
+}

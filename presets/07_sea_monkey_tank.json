@@ -1,0 +1,187 @@
+{
+	"globe": {
+		"base_accent": [
+			0.9,
+			0.95,
+			0.95,
+			1.0
+		],
+		"base_color": [
+			0.3,
+			0.6,
+			0.65,
+			1.0
+		],
+		"base_finish": 2,
+		"base_type": 0,
+		"fill": 0,
+		"floor_color": [
+			0.8,
+			0.7,
+			0.5,
+			1.0
+		],
+		"floor_depth": 0.75,
+		"floor_type": 1,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.3,
+			0.7,
+			0.75,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 1,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.8,
+			0.95,
+			0.95,
+			1.0
+		],
+		"glass_width": 1.1,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.05,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 24,
+		"trim_color": [
+			0.95,
+			0.8,
+			0.4,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"amount": 50,
+			"kind": "creatures",
+			"name": "Sea monkeys",
+			"seed": 0,
+			"species": {
+				"accent_color": [
+					1.0,
+					0.5,
+					0.4,
+					1.0
+				],
+				"agility": 3.0,
+				"alignment": 0.6,
+				"anim_speed": 1.0,
+				"body": 0,
+				"cohesion": 0.4,
+				"color": [
+					1.0,
+					0.74,
+					0.62,
+					1.0
+				],
+				"color_variation": 0.2,
+				"detail_color": [
+					0.08,
+					0.06,
+					0.06,
+					1.0
+				],
+				"emission": 0.15,
+				"follow_leader": 0.0,
+				"grip": 1.0,
+				"movement": 0,
+				"neighbor_radius": 4.0,
+				"panic": 1.2,
+				"panic_speed": 2.5,
+				"rest_chance": 0.0,
+				"rest_time": 3.0,
+				"separation": 1.2,
+				"size": 0.08,
+				"size_randomness": 0.2,
+				"speed": 0.3,
+				"touch_response": 1.0,
+				"wander": 1.0
+			}
+		},
+		{
+			"amount": 40,
+			"kind": "particles",
+			"name": "Bubbles",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.75,
+					0.9,
+					1.0,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 3.0,
+				"emission": 0.1,
+				"gravity": -0.8,
+				"metallic": 0.0,
+				"pop_at_rest": true,
+				"pop_delay": 0.6,
+				"restitution": 0.3,
+				"roughness": 0.1,
+				"shake_response": 0.05,
+				"shake_turbulence": 0.4,
+				"shape": 1,
+				"size": 0.035,
+				"size_randomness": 0.7,
+				"stickiness": 4.0,
+				"stretch": 0.12,
+				"swirl_response": 0.8,
+				"tumble_speed": 0.0,
+				"turbulence": 0.12
+			}
+		}
+	],
+	"name": "Sea Monkey Tank",
+	"props": [
+		{
+			"color": "#e8664f",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "coral",
+			"x": -0.45,
+			"z": 0.3
+		},
+		{
+			"color": "#2f7d4f",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "seaweed",
+			"x": 0.45,
+			"z": -0.2
+		},
+		{
+			"color": "#2f7d4f",
+			"rot": 0.0,
+			"scale": 1.2,
+			"type": "seaweed",
+			"x": -0.2,
+			"z": -0.5
+		},
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "rocks",
+			"x": 0.5,
+			"z": 0.45
+		},
+		{
+			"color": "#e8664f",
+			"rot": 90.0,
+			"scale": 0.7,
+			"type": "coral",
+			"x": 0.1,
+			"z": 0.6
+		}
+	],
+	"version": 2
+}

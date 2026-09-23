@@ -1,0 +1,99 @@
+{
+	"globe": {
+		"base_accent": [
+			0.08,
+			0.09,
+			0.11,
+			1.0
+		],
+		"base_color": [
+			0.2,
+			0.22,
+			0.26,
+			1.0
+		],
+		"base_finish": 0,
+		"base_type": 0,
+		"fill": 0,
+		"floor_color": [
+			0.55,
+			0.75,
+			0.85,
+			1.0
+		],
+		"floor_depth": 0.6,
+		"floor_type": 0,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.4,
+			0.75,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 0,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.85,
+			0.97,
+			1.0,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.04,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.7,
+		"stand_sides": 6,
+		"trim_color": [
+			0.4,
+			0.85,
+			0.95,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"amount": 220,
+			"kind": "particles",
+			"name": "Bubbles",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.6,
+					0.95,
+					1.0,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 3.0,
+				"emission": 0.35,
+				"gravity": -1.2,
+				"metallic": 0.0,
+				"pop_at_rest": true,
+				"pop_delay": 0.6,
+				"restitution": 0.3,
+				"roughness": 0.1,
+				"shake_response": 0.05,
+				"shake_turbulence": 0.4,
+				"shape": 1,
+				"size": 0.06,
+				"size_randomness": 0.7,
+				"stickiness": 4.0,
+				"stretch": 0.12,
+				"swirl_response": 0.8,
+				"tumble_speed": 0.0,
+				"turbulence": 0.12
+			}
+		}
+	],
+	"name": "Bubble Lamp",
+	"props": [],
+	"version": 2
+}

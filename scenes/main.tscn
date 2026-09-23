@@ -1,0 +1,111 @@
+[gd_scene format=3 uid="uid://cdpwn8epsg14r"]
+
+[ext_resource type="Script" uid="uid://b08megia0n4pv" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://bdvpr81c2q6bg" path="res://scripts/orbit_camera.gd" id="2_cam"]
+[ext_resource type="Script" uid="uid://cb6luj0eoc6r" path="res://scripts/snow_globe.gd" id="3_globe"]
+[ext_resource type="Shader" uid="uid://bhsgdr2l07yux" path="res://shaders/stand.gdshader" id="4_wood"]
+[ext_resource type="Script" uid="uid://dhikcpyehi8p4" path="res://scripts/globe_particles.gd" id="5_particles"]
+[ext_resource type="Resource" path="res://particles/snow.tres" id="6_snow"]
+[ext_resource type="Script" path="res://scripts/ui/app_ui.gd" id="7_ui"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
+sky_top_color = Color(0.5, 0.52, 0.58, 1)
+sky_horizon_color = Color(0.06, 0.06, 0.08, 1)
+sky_curve = 0.3
+ground_bottom_color = Color(0, 0, 0, 1)
+ground_horizon_color = Color(0.06, 0.06, 0.08, 1)
+sun_angle_max = 1.0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_mat")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.012, 0.012, 0.018, 1)
+sky = SubResource("sky")
+ambient_light_source = 2
+ambient_light_color = Color(0.35, 0.38, 0.5, 1)
+ambient_light_energy = 0.12
+reflected_light_source = 2
+tonemap_mode = 3
+glow_enabled = true
+glow_intensity = 0.5
+glow_bloom = 0.04
+
+[sub_resource type="BoxMesh" id="shelf_mesh"]
+size = Vector3(6.4, 0.14, 2.8)
+
+[sub_resource type="ShaderMaterial" id="shelf_mat"]
+render_priority = 0
+shader = ExtResource("4_wood")
+shader_parameter/primary_color = Color(0.36, 0.22, 0.13, 1)
+shader_parameter/secondary_color = Color(0.17, 0.09, 0.05, 1)
+shader_parameter/ring_frequency = 9.0
+shader_parameter/grain_warp = 1.2
+shader_parameter/wood_roughness = 0.55
+shader_parameter/use_texture = false
+shader_parameter/texture_scale = Vector2(1, 1)
+shader_parameter/trim_start = -1.0
+shader_parameter/trim_end = -1.0
+shader_parameter/trim_color = Color(0.95, 0.75, 0.35, 1)
+shader_parameter/trim_roughness = 0.35
+
+[node name="Main" type="Node3D" unique_id=977697464 node_paths=PackedStringArray("globe", "camera", "ui", "spot_light", "inspect_fill")]
+script = ExtResource("1_main")
+globe = NodePath("SnowGlobe")
+camera = NodePath("Camera")
+ui = NodePath("UI")
+spot_light = NodePath("SpotLight")
+inspect_fill = NodePath("Camera/InspectFill")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=760385636]
+environment = SubResource("env")
+
+[node name="SpotLight" type="SpotLight3D" parent="." unique_id=348724792]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 5.5, 0.6)
+light_color = Color(1, 0.94, 0.84, 1)
+light_energy = 14.0
+light_size = 0.4
+shadow_enabled = true
+shadow_bias = 0.08
+shadow_normal_bias = 1.5
+shadow_blur = 2.0
+spot_range = 10.0
+spot_attenuation = 0.6
+spot_angle = 30.0
+spot_angle_attenuation = 1.6
+
+[node name="RimLight" type="DirectionalLight3D" parent="." unique_id=907623397]
+transform = Transform3D(-1, 0, 0, 0, 0.94, -0.34, 0, -0.34, -0.94, 0, 2, -3)
+light_color = Color(0.55, 0.65, 0.9, 1)
+light_energy = 0.35
+
+[node name="Camera" type="Camera3D" parent="." unique_id=146742521]
+fov = 45.0
+script = ExtResource("2_cam")
+
+[node name="InspectFill" type="OmniLight3D" parent="Camera" unique_id=1237550953]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.8, 0)
+visible = false
+light_color = Color(0.85, 0.9, 1, 1)
+light_energy = 0.0
+omni_range = 8.0
+omni_attenuation = 0.5
+
+[node name="Shelf" type="MeshInstance3D" parent="." unique_id=1340633690]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.07, 0)
+mesh = SubResource("shelf_mesh")
+surface_material_override/0 = SubResource("shelf_mat")
+
+[node name="SnowGlobe" type="Node3D" parent="." unique_id=341739055]
+script = ExtResource("3_globe")
+
+[node name="Snow" type="MultiMeshInstance3D" parent="SnowGlobe" unique_id=713773668]
+cast_shadow = 0
+script = ExtResource("5_particles")
+amount = 3000
+style = ExtResource("6_snow")
+
+[node name="UI" type="CanvasLayer" parent="." node_paths=PackedStringArray("globe")]
+script = ExtResource("7_ui")
+globe = NodePath("../SnowGlobe")
