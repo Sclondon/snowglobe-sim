@@ -150,7 +150,8 @@ func randomize_globe() -> void:
 	GlobePreset.apply(globe, data)
 	_layer_index = 0
 	selected_prop = -1
-	_set_status("Rolled a %s globe — save it in Presets if you like it." % String(data["name"]).trim_prefix("Random ").to_lower())
+	var theme := String(data["name"]).trim_prefix("Random ").to_lower()
+	_set_status("Rolled %s %s globe — save it in Presets if you like it." % ["an" if theme[0] in "aeiou" else "a", theme])
 	_changed()
 	refresh.call_deferred()
 
