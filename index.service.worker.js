@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1790154412|1869316';
+const CACHE_VERSION = '1790158870|2134631';
 /** @type {string} */
 const CACHE_PREFIX = 'SnowglobeSimulat-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
