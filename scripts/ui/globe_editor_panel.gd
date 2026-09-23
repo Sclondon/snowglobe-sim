@@ -10,6 +10,8 @@ signal close_requested
 signal edited
 ## The Props tab was opened / left (main.gd lets you drag props then).
 signal props_tab_toggled(active: bool)
+## "Remove this globe" was pressed.
+signal remove_globe_requested
 
 enum Tab { GLOBE, CONTENTS, PROPS, PRESETS }
 
@@ -29,6 +31,8 @@ const PARTICLE_MOTION := [
 	["swirl_response", "Swirl response", 0.0, 2.0, 0.01],
 	["turbulence", "Drift", 0.0, 0.5, 0.005],
 	["shake_turbulence", "Stir-up on shake", 0.0, 3.0, 0.01],
+	["wind", "Wind (circles the globe)", -3.0, 3.0, 0.01],
+	["lift", "Updraught", -2.0, 2.0, 0.01],
 	["restitution", "Bounciness", 0.0, 1.0, 0.01],
 	["stickiness", "Settles", 0.0, 30.0, 0.1],
 	["pop_at_rest", "Pop & respawn when settled"],
@@ -61,17 +65,7 @@ const WALKER_BEHAVIOUR := [
 	["grip", "Grip (hard to knock over)", 0.1, 5.0, 0.01],
 	["follow_leader", "Follow the leader", 0.0, 1.0, 0.01],
 ]
-const PLASMA_ROWS := [
-	["arc_count", "Arcs", 1, 16, 1],
-	["arc_color", "Arc colour"],
-	["core_color", "Core colour"],
-	["jitter", "Jaggedness", 0.0, 2.0, 0.01],
-	["arc_width", "Arc thickness", 0.002, 0.05, 0.001],
-	["wander_speed", "Wander", 0.0, 3.0, 0.01],
-	["brightness", "Brightness", 0.0, 4.0, 0.01],
-	["electrode_size", "Electrode size", 0.03, 0.3, 0.005],
-]
-const SHAPE_NAMES := ["Snowflake", "Bubble", "Glitter", "Rain"]
+const SHAPE_NAMES := ["Snowflake", "Bubble", "Glitter", "Rain / streak", "Dust mote", "Cloud"]
 const BODY_NAMES := ["Sea monkey", "Butterfly", "Ant", "Person"]
 const MOVEMENT_NAMES := ["Swim", "Fly", "Walk"]
 ## "+ Add" menu: label → [kind, preset path, amount].
@@ -80,11 +74,17 @@ const NEW_LAYERS := {
 	"Rain": ["particles", "res://particles/rain.tres", 500],
 	"Bubbles": ["particles", "res://particles/bubbles.tres", 150],
 	"Glitter": ["particles", "res://particles/glitter.tres", 500],
+	"Dust": ["particles", "res://particles/dust.tres", 400],
+	"Wind": ["particles", "res://particles/wind.tres", 250],
+	"Clouds / fog": ["particles", "res://particles/clouds.tres", 45],
 	"Sea monkeys": ["creatures", "res://creatures/sea_monkeys.tres", 50],
 	"Butterflies": ["creatures", "res://creatures/butterflies.tres", 20],
 	"Ants": ["creatures", "res://creatures/ants.tres", 40],
 	"People": ["creatures", "res://creatures/people.tres", 12],
 	"Plasma": ["plasma", "", 0],
+	"Fireworks": ["fireworks", "", 0],
+	"Dynamite": ["dynamite", "", 0],
+	"Cobwebs": ["cobwebs", "", 0],
 }
 
 var globe: SnowGlobe
@@ -113,7 +113,8 @@ func _ready() -> void:
 	title.theme_type_variation = &"HeaderLabel"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
-	header.add_child(_icon_button(preload("res://ui/icons/randomize.svg"), "Random globe", randomize_globe))
+	header.add_child(_icon_button(preload("res://ui/icons/randomize.svg"), "Random themed globe", randomize_globe))
+	header.add_child(_icon_button(preload("res://ui/icons/chaos.svg"), "Totally random globe", randomize_globe.bind(true)))
 	header.add_child(_icon_button(preload("res://ui/icons/close.svg"), "Close editor", close_requested.emit))
 
 	_tabs = TabContainer.new()
@@ -143,15 +144,19 @@ func refresh() -> void:
 
 
 ## Replaces the globe with a randomly rolled one (see GlobeRandomizer).
-func randomize_globe() -> void:
+## chaos: ignore themes and pick every part independently.
+func randomize_globe(chaos := false) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	var data := GlobeRandomizer.roll(rng)
+	var data := GlobeRandomizer.roll_chaos(rng) if chaos else GlobeRandomizer.roll(rng)
 	GlobePreset.apply(globe, data)
 	_layer_index = 0
 	selected_prop = -1
-	var theme := String(data["name"]).trim_prefix("Random ").to_lower()
-	_set_status("Rolled %s %s globe — save it in Presets if you like it." % ["an" if theme[0] in "aeiou" else "a", theme])
+	if chaos:
+		_set_status("Rolled a totally random globe — save it in Presets if you like it.")
+	else:
+		var theme := String(data["name"]).trim_prefix("Random ").to_lower()
+		_set_status("Rolled %s %s globe — save it in Presets if you like it." % ["an" if theme[0] in "aeiou" else "a", theme])
 	_changed()
 	refresh.call_deferred()
 
@@ -194,6 +199,7 @@ func _build_globe_tab() -> void:
 	_heading(box, "Glass")
 	_option(box, "Shape", GlassShape.KIND_NAMES, globe.glass_shape, func(i: int) -> void:
 		globe.glass_shape = i as GlassShape.Kind
+		globe.floor_depth = GlassShape.DEFAULT_FLOOR_DEPTH[i]
 		rebuild.call())
 	_rows(box, [
 		["globe_radius", "Size", 0.6, 1.6, 0.01],
@@ -300,9 +306,12 @@ func _build_contents_tab() -> void:
 		_particles_editor(box, layer)
 	elif layer is GlobeCreatures:
 		_creatures_editor(box, layer)
-	elif layer is GlobePlasma:
-		_rows(box, PLASMA_ROWS, layer)
-		_hint(box, "Touch or click-and-hold the glass to pull the arcs.")
+	else:
+		# Plasma, fireworks, dynamite, cobwebs: rows come from the layer class.
+		var consts: Dictionary = layer.get_script().get_script_constant_map()
+		_rows(box, consts.get("EDITOR_ROWS", []), layer)
+		if consts.has("EDITOR_HINT"):
+			_hint(box, consts["EDITOR_HINT"])
 
 
 func _particles_editor(box: Control, layer: GlobeParticles) -> void:
@@ -366,8 +375,8 @@ func _on_add_layer(index: int) -> void:
 				c.species = (load(info[1]) as CreatureSpecies).duplicate(true)
 				c.amount = info[2]
 				node = c
-			_:
-				node = GlobePlasma.new()
+			var kind:
+				node = GlobePreset.new_settings_layer(kind)
 		node.name = keys[index]
 	elif not layers.is_empty():
 		var entry: Dictionary = GlobePreset.capture(globe, "")["layers"][_layer_index]
@@ -507,6 +516,12 @@ func _build_presets_tab() -> void:
 	save.focus_mode = Control.FOCUS_NONE
 	save.pressed.connect(_save_preset)
 	save_row.add_child(save)
+
+	var remove := Button.new()
+	remove.text = "Remove this globe from the shelf"
+	remove.focus_mode = Control.FOCUS_NONE
+	remove.pressed.connect(remove_globe_requested.emit)
+	_presets_box.add_child(remove)
 
 	_heading(_presets_box, "Load")
 	for entry in GlobePreset.list_presets():

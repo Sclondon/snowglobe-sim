@@ -10,10 +10,15 @@ extends CanvasLayer
 
 signal shake_pressed
 signal inspect_pressed
+signal inside_pressed
+signal add_globe_pressed
+## The editor asked to take the selected globe off the shelf.
+signal remove_globe_requested
+## Something the session should remember changed (main.gd saves it).
+signal save_requested
 ## The part of the screen not covered by UI, in 0..1 screen fractions.
 signal view_rect_changed(rect: Rect2)
 
-@export var globe: SnowGlobe
 ## Extra multiplier on the automatic UI scale.
 @export_range(0.5, 2.0, 0.05) var ui_scale_multiplier := 1.0
 ## Fraction of a portrait screen the editor sheet takes up.
@@ -29,8 +34,12 @@ const ICON_EDIT := preload("res://ui/icons/edit.svg")
 const ICON_SHAKE := preload("res://ui/icons/shake.svg")
 const ICON_INSPECT := preload("res://ui/icons/inspect.svg")
 const ICON_PUT_BACK := preload("res://ui/icons/put_back.svg")
+const ICON_ADD := preload("res://ui/icons/add.svg")
+const ICON_INSIDE := preload("res://ui/icons/inside.svg")
 const ACCENT := Color(0.62, 0.78, 1.0)
 
+## The globe the editor works on (the selected one); set via set_globe().
+var globe: SnowGlobe
 var editor_open := false
 ## True while the editor's Props tab is open: dragging inside the globe moves props.
 var props_editing := false
@@ -40,9 +49,12 @@ var _panel: GlobeEditorPanel
 var _edit_button: Button
 var _shake_button: Button
 var _inspect_button: Button
+var _add_button: Button
+var _inside_button: Button
+var _top_buttons: Array[Button] = []
 var _hint: Label
 var _hint_tween: Tween
-var _inspecting := false
+var _mode := 0
 var _autosave_in := -1.0
 var _touch := false
 var _fps: Label
@@ -62,22 +74,21 @@ func _ready() -> void:
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_hint)
 
+	_inside_button = _tool_button(ICON_INSIDE, "Look from inside (V)", inside_pressed.emit)
+	_add_button = _tool_button(ICON_ADD, "Add a globe", add_globe_pressed.emit)
 	_edit_button = _tool_button(ICON_EDIT, "Edit globe (E)", toggle_editor)
+	# Laid out right-to-left from the top-right corner.
+	_top_buttons = [_edit_button, _add_button, _inside_button]
 	_shake_button = _tool_button(ICON_SHAKE, "Shake (Space)", shake_pressed.emit, &"BigButton")
 	_inspect_button = _tool_button(ICON_INSPECT, "Inspect (I)", inspect_pressed.emit, &"BigButton")
 
 	_panel = GlobeEditorPanel.new()
-	_panel.globe = globe
 	_panel.visible = false
+	_panel.remove_globe_requested.connect(remove_globe_requested.emit)
 	_panel.close_requested.connect(toggle_editor)
 	_panel.edited.connect(func() -> void: _autosave_in = 1.0)
 	_panel.props_tab_toggled.connect(func(active: bool) -> void: props_editing = active)
 	_root.add_child(_panel)
-
-	if not "--fresh" in OS.get_cmdline_user_args():
-		var last := GlobePreset.load_last_session()
-		if not last.is_empty():
-			GlobePreset.apply(globe, last)
 
 	# Frame-rate readout for testing on phones: add ?fps to the page URL.
 	if _wants_fps():
@@ -88,7 +99,7 @@ func _ready() -> void:
 
 	get_window().size_changed.connect(_layout)
 	_layout.call_deferred()
-	set_inspecting(false)
+	set_mode(0)
 
 
 func _process(delta: float) -> void:
@@ -127,18 +138,36 @@ func toggle_fullscreen() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 
-## Called by main when the globe goes into / out of inspect mode.
-func set_inspecting(inspecting: bool) -> void:
-	_inspecting = inspecting
+## Points the editor at a globe (the selected one).
+func set_globe(g: SnowGlobe) -> void:
+	globe = g
+	_panel.globe = g
+	if editor_open:
+		_panel.refresh()
+
+
+## Whether another globe fits on the shelf.
+func set_can_add(can_add: bool) -> void:
+	_add_button.disabled = not can_add
+
+
+## Called by main when the view mode changes (0 shelf, 1 inspect, 2 inside).
+func set_mode(mode: int) -> void:
+	_mode = mode
+	var inspecting := mode == 1
 	_inspect_button.icon = ICON_PUT_BACK if inspecting else ICON_INSPECT
 	_inspect_button.tooltip_text = "Put back (Esc)" if inspecting else "Inspect (I)"
+	_inside_button.icon = ICON_PUT_BACK if mode == 2 else ICON_INSIDE
+	_inside_button.tooltip_text = "Back outside (V / Esc)" if mode == 2 else "Look from inside (V)"
 	var text: String
-	if inspecting:
+	if mode == 2:
+		text = "Drag to look around  ·  pinch to zoom  ·  shake the globe from in here!" if _touch 			else "Drag to look around  ·  wheel zooms  ·  Space shakes  ·  V or Esc to step out"
+	elif inspecting:
 		text = "Drag to turn the globe  ·  two fingers to look around  ·  pinch to bring it closer" if _touch \
 			else "Drag to turn the globe  ·  right-drag to look around  ·  wheel to bring it closer  ·  Esc puts it back"
 	else:
-		text = "Drag the globe to move it  ·  drag elsewhere to look around  ·  pinch to zoom  ·  double-tap to inspect" if _touch \
-			else "Drag the globe to move it  ·  drag elsewhere to orbit  ·  wheel zooms  ·  double-click inspects  ·  Space shakes  ·  E edits"
+		text = "Drag a globe to swing or toss it  ·  drag elsewhere to look around  ·  pinch to zoom  ·  double-tap to inspect" if _touch \
+			else "Drag a globe to swing or toss it  ·  drag elsewhere to orbit  ·  wheel zooms  ·  double-click inspects  ·  Space shakes  ·  E edits"
 	_show_hint(text)
 
 
@@ -178,9 +207,17 @@ func _layout() -> void:
 	# Edit in the top-right corner; Shake and Inspect in the bottom corners of
 	# whatever part of the screen the editor leaves free.
 	_edit_button.visible = not editor_open
-	_edit_button.size = Vector2.ZERO
-	var top_size := _edit_button.get_combined_minimum_size() if not editor_open else Vector2.ZERO
-	_edit_button.position = Vector2(free.end.x - top_size.x - MARGIN, MARGIN)
+	var top_size := Vector2.ZERO
+	var x := free.end.x - MARGIN
+	for b in _top_buttons:
+		if not b.visible:
+			continue
+		b.size = Vector2.ZERO
+		var bs := b.get_combined_minimum_size()
+		x -= bs.x
+		b.position = Vector2(x, MARGIN)
+		x -= 8.0
+		top_size = Vector2(free.end.x - MARGIN - x, bs.y)
 	for b in [_shake_button, _inspect_button]:
 		b.size = Vector2.ZERO
 	var corner := MARGIN * 1.5
@@ -215,7 +252,7 @@ func _show_hint(text: String) -> void:
 
 func _save_session() -> void:
 	_autosave_in = -1.0
-	GlobePreset.save_last_session(GlobePreset.capture(globe, "Last session"))
+	save_requested.emit()
 
 
 func _tool_button(icon: Texture2D, tip: String, on_press: Callable, variation := &"OverlayButton") -> Button:

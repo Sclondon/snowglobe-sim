@@ -139,7 +139,7 @@ func _spawn(i: int) -> void:
 	var p: Vector3
 	if _sp.movement == CreatureSpecies.Movement.WALK:
 		var a := _rng.randf() * TAU
-		var r := sqrt(_rng.randf()) * shape.floor_radius * 0.8
+		var r := sqrt(_rng.randf()) * shape.floor_radius * 0.8 * shape.radius_factor(sin(a), cos(a))
 		p = Vector3(sin(a) * r, 0, cos(a) * r)
 		p.y = _globe.get_floor_height(p.x, p.z)
 	else:
@@ -337,7 +337,7 @@ func _walk(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array
 		if lead.length() > s * 1.4:
 			steer += lead.normalized() * _sp.follow_leader * 3.0
 	var rr := Vector2(p.x, p.z).length()
-	var edge := fr * 0.88 - s
+	var edge := fr * 0.88 * _globe.get_container().radius_factor(p.x, p.z) - s
 	if rr > edge:
 		steer += -Vector3(p.x, 0, p.z).normalized() * (rr - edge) / maxf(s, 1e-3) * 2.0
 	steer += _avoid_props(p, obstacles, s)
@@ -353,7 +353,7 @@ func _walk(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array
 	# Turn toward the steering direction at a limited rate.
 	var fwd := heading.slerp(dir, minf(1.0, _sp.agility * delta)) if dir != Vector3.ZERO else heading
 	p += fwd * speed * mult * delta
-	var flat := Vector2(p.x, p.z).limit_length(fr * 0.95 - s)
+	var flat := Vector2(p.x, p.z).limit_length(fr * 0.95 * _globe.get_container().radius_factor(p.x, p.z) - s)
 	p.x = flat.x
 	p.z = flat.y
 	p = _push_out_of_props(p, obstacles, s)
@@ -435,7 +435,7 @@ func _contain(p: Vector3, v: Vector3, s: float, bounce := 0.0) -> Array:
 		hit = true
 		v.y = -v.y * bounce
 	p.y = gc.y + ly
-	var wall := maxf(shape.radius_at(ly) - inset, 0.0)
+	var wall := maxf(shape.radius_at(ly) * shape.radius_factor(p.x, p.z) - inset, 0.0)
 	var rr := Vector2(p.x, p.z).length()
 	if rr > wall:
 		var n := Vector3(p.x, 0, p.z) / maxf(rr, 1e-5)
@@ -460,7 +460,7 @@ func _avoid_bounds(p: Vector3, margin: float) -> Vector3:
 	var gc := _globe.glass_center
 	var ly := p.y - gc.y
 	var steer := Vector3.ZERO
-	var wall := shape.radius_at(clampf(ly, shape.y_min + 1e-3, shape.y_max - 1e-3))
+	var wall := shape.radius_at(clampf(ly, shape.y_min + 1e-3, shape.y_max - 1e-3)) * shape.radius_factor(p.x, p.z)
 	var rr := Vector2(p.x, p.z).length()
 	if rr > wall - margin and rr > 1e-5:
 		steer -= Vector3(p.x, 0, p.z) / rr * (rr - (wall - margin)) / margin * 4.0
@@ -584,3 +584,22 @@ func _write_all() -> void:
 		_buf[o + 16] = fposmod(_phase[i], TAU * 64.0)
 		_buf[o + 17] = float(st)
 		_buf[o + 19] = 1.0 if moving or st == State.TUMBLING else 0.0
+
+
+## An explosion at globe-local `origin`: everyone panics; walkers (and anyone
+## close) get knocked flying.
+func blast(origin: Vector3, strength: float) -> void:
+	var R := _globe.globe_radius
+	for i in _pos.size():
+		var d := _pos[i] - origin
+		var dist := d.length()
+		var k := strength * R * 2.5 / (1.0 + dist / R * 3.0)
+		_panic[i] = maxf(_panic[i], 2.0 + strength)
+		if _sp.movement == CreatureSpecies.Movement.WALK or dist < R * 0.4:
+			if _state[i] != State.TUMBLING:
+				_start_tumble(i, (d / maxf(dist, 1e-4) + Vector3.UP * 0.8) * k)
+			else:
+				_vel[i] += d / maxf(dist, 1e-4) * k
+		else:
+			_vel[i] += d / maxf(dist, 1e-4) * k
+	_agitation = maxf(_agitation, minf(strength, 1.5))

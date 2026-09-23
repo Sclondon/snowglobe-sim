@@ -5,21 +5,25 @@ extends RefCounted
 ## "outward" hint and fix the winding themselves.
 
 
-## Adds a flat-shaded triangle facing `out`.
+## Adds a flat-shaded triangle facing `out`. Optional corner coordinates go
+## in UV2 (quads use them so shaders can find face edges).
 static func add_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
-		ua: Vector2, ub: Vector2, uc: Vector2, out: Vector3) -> void:
+		ua: Vector2, ub: Vector2, uc: Vector2, out: Vector3,
+		ca := Vector2(-1, -1), cb := Vector2(-1, -1), cc := Vector2(-1, -1)) -> void:
 	var normal := (c - a).cross(b - a)
 	if normal.length_squared() < 1e-14:
 		return
 	if normal.dot(out) < 0.0:
 		var tmp := b; b = c; c = tmp
 		var tu := ub; ub = uc; uc = tu
+		var tc := cb; cb = cc; cc = tc
 		normal = -normal
 	normal = normal.normalized()
-	for pair in [[a, ua], [b, ub], [c, uc]]:
+	for trio in [[a, ua, ca], [b, ub, cb], [c, uc, cc]]:
 		st.set_normal(normal)
-		st.set_uv(pair[1])
-		st.add_vertex(pair[0])
+		st.set_uv(trio[1])
+		st.set_uv2(trio[2])
+		st.add_vertex(trio[0])
 
 
 ## Adds a smooth-shaded triangle (per-vertex normals) facing `out`.
@@ -35,8 +39,9 @@ static func add_tri_smooth(st: SurfaceTool, p: Array, n: Array, uv: Array, out: 
 
 
 static func add_quad(st: SurfaceTool, p: Array, uv: Array, out: Vector3) -> void:
-	add_tri(st, p[0], p[1], p[2], uv[0], uv[1], uv[2], out)
-	add_tri(st, p[0], p[2], p[3], uv[0], uv[2], uv[3], out)
+	var c := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
+	add_tri(st, p[0], p[1], p[2], uv[0], uv[1], uv[2], out, c[0], c[1], c[2])
+	add_tri(st, p[0], p[2], p[3], uv[0], uv[2], uv[3], out, c[0], c[2], c[3])
 
 
 ## Direction around the Y axis for side `i` of `sides`, offset by half a side

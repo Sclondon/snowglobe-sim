@@ -1,0 +1,188 @@
+{
+	"globe": {
+		"base_accent": [
+			0.2,
+			0.22,
+			0.25,
+			1.0
+		],
+		"base_color": [
+			0.5,
+			0.52,
+			0.56,
+			1.0
+		],
+		"base_finish": 3,
+		"base_type": 0,
+		"fill": 1,
+		"floor_color": [
+			0.28,
+			0.42,
+			0.24,
+			1.0
+		],
+		"floor_depth": 0.72,
+		"floor_type": 2,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.35,
+		"glass_shape": 1,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.82,
+			0.88,
+			0.95,
+			1.0
+		],
+		"glass_width": 0.9,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.12,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.8,
+			0.82,
+			0.86,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"amount": 40,
+			"kind": "particles",
+			"name": "Clouds",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.55,
+					0.58,
+					0.64,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 3.0,
+				"emission": 0.15,
+				"gravity": -0.06,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": false,
+				"pop_delay": 1.5,
+				"restitution": 0.3,
+				"roughness": 1.0,
+				"shake_response": 0.06,
+				"shake_turbulence": 1.0,
+				"shape": 5,
+				"size": 0.34,
+				"size_randomness": 0.5,
+				"stickiness": 0.0,
+				"stretch": 0.12,
+				"swirl_response": 1.0,
+				"tumble_speed": 0.25,
+				"turbulence": 0.06,
+				"wind": 0.12
+			}
+		},
+		{
+			"amount": 200,
+			"kind": "particles",
+			"name": "Wind",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.9,
+					0.95,
+					1.0,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 2.5,
+				"emission": 0.6,
+				"gravity": 0.0,
+				"lift": 0.08,
+				"metallic": 0.0,
+				"pop_at_rest": false,
+				"pop_delay": 1.5,
+				"restitution": 0.6,
+				"roughness": 0.5,
+				"shake_response": 0.05,
+				"shake_turbulence": 0.8,
+				"shape": 3,
+				"size": 0.009,
+				"size_randomness": 0.4,
+				"stickiness": 0.0,
+				"stretch": 0.35,
+				"swirl_response": 0.5,
+				"tumble_speed": 0.0,
+				"turbulence": 0.15,
+				"wind": 1.1
+			}
+		},
+		{
+			"amount": 350,
+			"kind": "particles",
+			"name": "Rain",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.7,
+					0.82,
+					1.0,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 0.5,
+				"emission": 0.4,
+				"gravity": 3.0,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": true,
+				"pop_delay": 0.0,
+				"restitution": 0.0,
+				"roughness": 0.2,
+				"shake_response": 0.08,
+				"shake_turbulence": 0.4,
+				"shape": 3,
+				"size": 0.012,
+				"size_randomness": 0.3,
+				"stickiness": 30.0,
+				"stretch": 0.12,
+				"swirl_response": 0.6,
+				"tumble_speed": 0.0,
+				"turbulence": 0.02,
+				"wind": 0.0
+			}
+		}
+	],
+	"name": "Storm Front",
+	"props": [
+		{
+			"color": "#e04040",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "lighthouse",
+			"x": 0.0,
+			"z": 0.0
+		},
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "rocks",
+			"x": 0.45,
+			"z": 0.35
+		}
+	],
+	"version": 2
+}

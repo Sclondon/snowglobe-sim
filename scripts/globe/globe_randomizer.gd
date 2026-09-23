@@ -44,6 +44,28 @@ const THEMES := {
 		"props": ["pine", "snowman", "round_tree", "cabin"],
 		"layers": [["glitter", 1.0], ["bubbles", 0.5], ["snow", 0.4]],
 	},
+	"attic": {
+		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.ROCK, SnowGlobe.FloorType.MOSS],
+		"props": ["rocks", "cabin", "round_tree", "rocks"],
+		"layers": [["cobwebs", 1.0], ["dust", 1.0], ["people", 0.2]],
+		"tint": Color(0.85, 0.82, 0.72),
+	},
+	"celebration": {
+		"weight": 1, "fill": SnowGlobe.Fill.WATER, "floors": [SnowGlobe.FloorType.SNOW, SnowGlobe.FloorType.GRASS],
+		"props": ["cabin", "pine", "snowman", "lighthouse"],
+		"layers": [["fireworks", 1.0], ["glitter", 0.4], ["snow", 0.3]],
+	},
+	"sky": {
+		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.GRASS, SnowGlobe.FloorType.MOSS],
+		"props": ["lighthouse", "round_tree", "rocks"],
+		"layers": [["clouds", 1.0], ["wind", 0.7], ["rain", 0.3]],
+		"tint": Color(0.82, 0.9, 1.0),
+	},
+	"mine": {
+		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.ROCK, SnowGlobe.FloorType.SAND],
+		"props": ["rocks", "rocks", "cactus", "anthill"],
+		"layers": [["dynamite", 1.0], ["dust", 0.7], ["people", 0.4]],
+	},
 }
 
 ## Layer recipes: kind, preset resource, amount range.
@@ -56,7 +78,13 @@ const LAYERS := {
 	"butterflies": ["creatures", "res://creatures/butterflies.tres", Vector2i(12, 28)],
 	"ants": ["creatures", "res://creatures/ants.tres", Vector2i(25, 50)],
 	"people": ["creatures", "res://creatures/people.tres", Vector2i(5, 12)],
+	"dust": ["particles", "res://particles/dust.tres", Vector2i(250, 500)],
+	"wind": ["particles", "res://particles/wind.tres", Vector2i(180, 320)],
+	"clouds": ["particles", "res://particles/clouds.tres", Vector2i(30, 60)],
 	"plasma": ["plasma", "", Vector2i.ZERO],
+	"fireworks": ["fireworks", "", Vector2i.ZERO],
+	"dynamite": ["dynamite", "", Vector2i.ZERO],
+	"cobwebs": ["cobwebs", "", Vector2i.ZERO],
 }
 
 
@@ -66,15 +94,13 @@ static func roll(rng: RandomNumberGenerator) -> Dictionary:
 	var g := {}
 
 	# Glass.
-	var shape: int = [0, 0, 0, 1, 1, 2, 3][rng.randi() % 7]
+	var shapes := [0, 0, 0, 1, 1, 2, 3, 4, 5, 6]
+	var shape: int = shapes[rng.randi() % shapes.size()]
 	g["glass_shape"] = shape
 	g["glass_width"] = rng.randf_range(0.85, 1.15)
 	g["glass_height"] = rng.randf_range(0.9, 1.25) if shape != GlassShape.Kind.TUBE else rng.randf_range(1.0, 1.35)
 	g["glass_facets"] = rng.randi_range(6, 12)
-	match shape:
-		GlassShape.Kind.TUBE: g["floor_depth"] = rng.randf_range(0.6, 0.8)
-		GlassShape.Kind.DIAMOND: g["floor_depth"] = rng.randf_range(0.3, 0.42)
-		_: g["floor_depth"] = rng.randf_range(0.45, 0.68)
+	g["floor_depth"] = clampf(GlassShape.DEFAULT_FLOOR_DEPTH[shape] + rng.randf_range(-0.08, 0.08), 0.25, 0.85)
 	g["glass_thickness"] = rng.randf_range(0.1, 0.4)
 	g["glass_distortion"] = rng.randf_range(0.0, 0.3)
 	g["magnification"] = rng.randf_range(1.1, 1.3)
@@ -125,6 +151,53 @@ static func roll(rng: RandomNumberGenerator) -> Dictionary:
 		"props": _roll_props(rng, theme["props"]),
 		"layers": _roll_layers(rng, theme["layers"]),
 	}
+
+
+## No theme: every part is picked on its own, from everything available.
+static func roll_chaos(rng: RandomNumberGenerator) -> Dictionary:
+	var data := roll(rng)
+	var g: Dictionary = data["globe"]
+	g["glass_shape"] = rng.randi() % GlassShape.KIND_NAMES.size()
+	g["glass_width"] = rng.randf_range(0.7, 1.4)
+	g["glass_height"] = rng.randf_range(0.7, 1.6)
+	g["floor_depth"] = clampf(GlassShape.DEFAULT_FLOOR_DEPTH[g["glass_shape"]] + rng.randf_range(-0.15, 0.1), 0.25, 0.85)
+	g["glass_thickness"] = rng.randf_range(0.0, 0.7)
+	g["glass_distortion"] = rng.randf_range(-0.3, 0.6)
+	g["fill"] = rng.randi() % SnowGlobe.FILL_NAMES.size()
+	g["glass_tint"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.0, 0.35), 1.0))
+	g["glass_edge_tint"] = GlobePreset._encode(Color.from_hsv(rng.randf(), 0.4, 0.8))
+	var floor_type := rng.randi() % SnowGlobe.FLOOR_NAMES.size()
+	g["floor_type"] = floor_type
+	g["floor_color"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.0, 0.7), rng.randf_range(0.3, 0.95)))
+	g["base_color"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.0, 0.8), rng.randf_range(0.2, 0.95)))
+	g["base_accent"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.0, 0.8), rng.randf_range(0.2, 0.9)))
+	g["mound_height"] = rng.randf_range(0.0, 0.3)
+
+	var types := PropLibrary.type_ids()
+	var pool := []
+	for i in 6:
+		pool.append(types[rng.randi() % types.size()])
+	data["props"] = _roll_props(rng, pool)
+	if rng.randf() < 0.15:
+		data["props"] = []
+
+	var kinds := LAYERS.keys()
+	kinds.shuffle()
+	var options := []
+	for i in rng.randi_range(1, 3):
+		options.append([kinds[(i + rng.randi()) % kinds.size()], 1.0])
+	data["layers"] = _roll_layers(rng, options)
+	for entry in data["layers"]:
+		# Push the looks further than the themed roll does.
+		if entry.has("style"):
+			entry["style"]["color"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.2, 1.0), 1.0))
+			entry["style"]["size"] = float(entry["style"]["size"]) * rng.randf_range(0.6, 2.0)
+			entry["style"]["gravity"] = float(entry["style"]["gravity"]) * rng.randf_range(-0.5, 1.8)
+		if entry.has("species"):
+			entry["species"]["color"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.3, 1.0), rng.randf_range(0.5, 1.0)))
+			entry["species"]["size"] = float(entry["species"]["size"]) * rng.randf_range(0.7, 1.6)
+	data["name"] = "Random Chaos"
+	return data
 
 
 static func _pick_theme(rng: RandomNumberGenerator) -> String:
@@ -195,6 +268,17 @@ static func _roll_layers(rng: RandomNumberGenerator, options: Array) -> Array:
 				sp.color = sp.color.lerp(Color.from_hsv(rng.randf(), 0.7, 0.9), rng.randf_range(0.0, 0.5))
 				sp.size *= rng.randf_range(0.85, 1.2)
 				entry["species"] = GlobePreset.capture_resource(sp)
+			"fireworks":
+				entry["settings"] = {
+					"launch_interval": rng.randf_range(0.6, 2.0),
+					"burst_size": rng.randi_range(35, 90),
+					"multicolour": rng.randf() < 0.75,
+					"color": GlobePreset._encode(Color.from_hsv(rng.randf(), 0.7, 1.0)),
+				}
+			"dynamite":
+				entry["settings"] = {"count": rng.randi_range(1, 3), "stick_color": GlobePreset._encode(Color.from_hsv(rng.randf_range(-0.03, 0.05), 0.85, 0.8))}
+			"cobwebs":
+				entry["settings"] = {"count": rng.randi_range(2, 5), "web_size": rng.randf_range(0.28, 0.45), "spokes": rng.randi_range(7, 11), "web_seed": rng.randi_range(0, 99)}
 			"plasma":
 				var hue := rng.randf_range(0.6, 1.1)
 				entry["settings"] = {

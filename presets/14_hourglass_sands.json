@@ -1,0 +1,110 @@
+{
+	"globe": {
+		"base_accent": [
+			0.5,
+			0.4,
+			0.2,
+			1.0
+		],
+		"base_color": [
+			0.85,
+			0.7,
+			0.35,
+			1.0
+		],
+		"base_finish": 1,
+		"base_type": 0,
+		"fill": 1,
+		"floor_color": [
+			0.85,
+			0.72,
+			0.48,
+			1.0
+		],
+		"floor_depth": 0.8,
+		"floor_type": 1,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.2,
+		"glass_shape": 4,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.98,
+			0.95,
+			0.88,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.18,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 6,
+		"trim_color": [
+			0.95,
+			0.8,
+			0.4,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"amount": 1500,
+			"kind": "particles",
+			"name": "Sand",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.9,
+					0.76,
+					0.5,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 1.0,
+				"emission": 0.1,
+				"gravity": 1.2,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": false,
+				"pop_delay": 1.5,
+				"restitution": 0.05,
+				"roughness": 0.8,
+				"shake_response": 0.12,
+				"shake_turbulence": 0.6,
+				"shape": 4,
+				"size": 0.012,
+				"size_randomness": 0.5,
+				"stickiness": 20.0,
+				"stretch": 0.12,
+				"swirl_response": 1.0,
+				"tumble_speed": 1.2,
+				"turbulence": 0.01,
+				"wind": 0.0
+			}
+		}
+	],
+	"name": "Hourglass Sands",
+	"props": [
+		{
+			"color": "#4f8a3a",
+			"rot": 0.0,
+			"scale": 0.7,
+			"type": "cactus",
+			"x": 0.3,
+			"z": 0.2
+		}
+	],
+	"version": 2
+}

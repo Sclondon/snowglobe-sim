@@ -2,10 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b08megia0n4pv" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" uid="uid://bdvpr81c2q6bg" path="res://scripts/orbit_camera.gd" id="2_cam"]
-[ext_resource type="Script" uid="uid://cb6luj0eoc6r" path="res://scripts/snow_globe.gd" id="3_globe"]
 [ext_resource type="Shader" uid="uid://bhsgdr2l07yux" path="res://shaders/stand.gdshader" id="4_wood"]
-[ext_resource type="Script" uid="uid://dhikcpyehi8p4" path="res://scripts/globe_particles.gd" id="5_particles"]
-[ext_resource type="Resource" path="res://particles/snow.tres" id="6_snow"]
 [ext_resource type="Script" path="res://scripts/ui/app_ui.gd" id="7_ui"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
@@ -33,7 +30,14 @@ glow_intensity = 0.5
 glow_bloom = 0.04
 
 [sub_resource type="BoxMesh" id="shelf_mesh"]
-size = Vector3(6.4, 0.14, 2.8)
+size = Vector3(10, 0.14, 3.6)
+
+[sub_resource type="BoxShape3D" id="shelf_shape"]
+size = Vector3(10, 0.14, 3.6)
+
+[sub_resource type="PhysicsMaterial" id="shelf_physics"]
+friction = 0.8
+bounce = 0.1
 
 [sub_resource type="ShaderMaterial" id="shelf_mat"]
 render_priority = 0
@@ -50,9 +54,8 @@ shader_parameter/trim_end = -1.0
 shader_parameter/trim_color = Color(0.95, 0.75, 0.35, 1)
 shader_parameter/trim_roughness = 0.35
 
-[node name="Main" type="Node3D" unique_id=977697464 node_paths=PackedStringArray("globe", "camera", "ui", "spot_light", "inspect_fill")]
+[node name="Main" type="Node3D" unique_id=977697464 node_paths=PackedStringArray("camera", "ui", "spot_light", "inspect_fill")]
 script = ExtResource("1_main")
-globe = NodePath("SnowGlobe")
 camera = NodePath("Camera")
 ui = NodePath("UI")
 spot_light = NodePath("SpotLight")
@@ -92,20 +95,16 @@ light_energy = 0.0
 omni_range = 8.0
 omni_attenuation = 0.5
 
-[node name="Shelf" type="MeshInstance3D" parent="." unique_id=1340633690]
+[node name="Shelf" type="StaticBody3D" parent="." unique_id=1340633690]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.07, 0)
+physics_material_override = SubResource("shelf_physics")
+
+[node name="Mesh" type="MeshInstance3D" parent="Shelf"]
 mesh = SubResource("shelf_mesh")
 surface_material_override/0 = SubResource("shelf_mat")
 
-[node name="SnowGlobe" type="Node3D" parent="." unique_id=341739055]
-script = ExtResource("3_globe")
+[node name="Collision" type="CollisionShape3D" parent="Shelf"]
+shape = SubResource("shelf_shape")
 
-[node name="Snow" type="MultiMeshInstance3D" parent="SnowGlobe" unique_id=713773668]
-cast_shadow = 0
-script = ExtResource("5_particles")
-amount = 3000
-style = ExtResource("6_snow")
-
-[node name="UI" type="CanvasLayer" parent="." node_paths=PackedStringArray("globe")]
+[node name="UI" type="CanvasLayer" parent="."]
 script = ExtResource("7_ui")
-globe = NodePath("../SnowGlobe")

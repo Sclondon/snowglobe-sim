@@ -25,7 +25,6 @@ const GLOBE_PROPERTIES: Array[String] = [
 ]
 ## Version 1 names for globe properties.
 const LEGACY_NAMES := {"wood_light": "base_color", "wood_dark": "base_accent", "snow_color": "floor_color"}
-const PLASMA_PROPERTIES: Array[String] = ["arc_count", "arc_color", "core_color", "jitter", "arc_width", "wander_speed", "brightness", "electrode_size"]
 
 
 # --- Capture / apply ----------------------------------------------------------
@@ -45,9 +44,9 @@ static func capture(globe: SnowGlobe, preset_name: String) -> Dictionary:
 			entry["amount"] = layer.amount
 			entry["seed"] = layer.random_seed
 			entry["species"] = capture_resource(layer.species if layer.species else CreatureSpecies.new())
-		elif layer is GlobePlasma:
+		else:
 			var settings := {}
-			for prop in PLASMA_PROPERTIES:
+			for prop in layer_settings(layer):
 				settings[prop] = _encode(layer.get(prop))
 			entry["settings"] = settings
 		layers.append(entry)
@@ -119,18 +118,17 @@ static func make_layer(entry: Dictionary) -> Node3D:
 			c.random_seed = int(entry.get("seed", 0))
 			c.species = resource_from_dict(CreatureSpecies.new(), entry.get("species", {}))
 			node = c
-		"plasma":
-			var pl := GlobePlasma.new()
+		var kind:
+			node = new_settings_layer(kind)
+			if node == null:
+				return null
 			var s = entry.get("settings", {})
 			if s is Dictionary:
-				for prop in PLASMA_PROPERTIES:
+				for prop in layer_settings(node):
 					if s.has(prop):
-						var v = _decode(s[prop], pl.get(prop))
+						var v = _decode(s[prop], node.get(prop))
 						if v != null:
-							pl.set(prop, v)
-			node = pl
-		_:
-			return null
+							node.set(prop, v)
 	node.name = String(entry.get("name", "Layer")).validate_node_name()
 	return node
 
@@ -159,9 +157,32 @@ static func get_layers(globe: SnowGlobe) -> Array[Node3D]:
 static func layer_kind(layer: Node) -> String:
 	if layer is GlobeCreatures:
 		return "creatures"
-	if layer is GlobePlasma:
-		return "plasma"
-	return "particles"
+	if layer is GlobeParticles:
+		return "particles"
+	return String(_script_const(layer, "KIND", "particles"))
+
+
+## New layer of a kind described by a flat list of settings (each class lists
+## them in its SETTINGS constant and names its kind in KIND), or null.
+static func new_settings_layer(kind: String) -> Node3D:
+	match kind:
+		"plasma": return GlobePlasma.new()
+		"fireworks": return GlobeFireworks.new()
+		"dynamite": return GlobeDynamite.new()
+		"cobwebs": return GlobeCobwebs.new()
+	return null
+
+
+## The settings a settings-kind layer stores (its SETTINGS constant).
+static func layer_settings(layer: Object) -> Array:
+	return _script_const(layer, "SETTINGS", [])
+
+
+static func _script_const(obj: Object, name: String, fallback):
+	var script: Script = obj.get_script()
+	if script == null:
+		return fallback
+	return script.get_script_constant_map().get(name, fallback)
 
 
 static func _stored_properties(res: Object) -> Array[String]:
@@ -303,12 +324,23 @@ static func delete_user(path: String) -> void:
 		DirAccess.remove_absolute(path)
 
 
-static func save_last_session(data: Dictionary) -> void:
-	_write(LAST_SESSION_PATH, data)
+## Saves every globe on the shelf (session format 3).
+static func save_session(globes: Array[SnowGlobe]) -> void:
+	var list := []
+	for g in globes:
+		list.append(capture(g, "Globe"))
+	_write(LAST_SESSION_PATH, {"version": 3, "globes": list})
 
 
-static func load_last_session() -> Dictionary:
-	return load_file(LAST_SESSION_PATH)
+## The globes of the last session as preset dictionaries (older sessions,
+## which held a single globe, come back as a list of one).
+static func load_session() -> Array:
+	var data := load_file(LAST_SESSION_PATH)
+	if data.is_empty():
+		return []
+	if data.has("globes") and data["globes"] is Array:
+		return (data["globes"] as Array).filter(func(g) -> bool: return g is Dictionary)
+	return [data]
 
 
 static func _write(path: String, data: Dictionary) -> bool:

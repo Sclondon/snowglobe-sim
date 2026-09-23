@@ -9,7 +9,7 @@
 shader_type spatial;
 render_mode cull_disabled;
 
-/** 0 = flake, 1 = bubble, 2 = glitter, 3 = rain. */
+/** 0 = flake, 1 = bubble, 2 = glitter, 3 = rain / streak, 4 = mote, 5 = cloud. */
 uniform int shape = 0;
 uniform float emission_strength = 0.15;
 uniform float roughness_value : hint_range(0.0, 1.0) = 0.7;
@@ -38,7 +38,7 @@ void vertex() {
 		VERTEX = r * VERTEX;
 		NORMAL = r * NORMAL;
 	} else if (shape == 3) {
-		// Rain: stretched along the instance's Y axis (its velocity, set on
+		// Rain / streaks: stretched along the instance's Y axis (its velocity, set on
 		// the CPU) and turned around that axis to face the camera.
 		vec3 axis = MODEL_MATRIX[1].xyz;
 		float width = length(MODEL_MATRIX[0].xyz);
@@ -53,9 +53,9 @@ void vertex() {
 		MODELVIEW_MATRIX = VIEW_MATRIX * mat4(vec4(side, 0.0), vec4(axis, 0.0), vec4(facing, 0.0), vec4(center, 1.0));
 		MODELVIEW_NORMAL_MATRIX = mat3(VIEW_MATRIX) * mat3(normalize(side), normalize(axis), facing);
 	} else {
-		// Flakes spin in the screen plane; bubbles don't (keeps the highlight
-		// in place). Then billboard, keeping the instance scale.
-		if (shape == 0) {
+		// Flakes and clouds spin in the screen plane; bubbles don't (keeps the
+		// highlight in place). Then billboard, keeping the instance scale.
+		if (shape == 0 || shape == 5) {
 			float c = cos(angle);
 			float s = sin(angle);
 			VERTEX.xy = mat2(vec2(c, s), vec2(-s, c)) * VERTEX.xy;
@@ -97,6 +97,21 @@ void fragment() {
 	} else if (shape == 3) {
 		alpha = (1.0 - smoothstep(0.2, 0.9, abs(p.x))) * (1.0 - smoothstep(0.55, 1.0, abs(p.y)));
 		glow = col * 0.3;
+	} else if (shape == 4) {
+		alpha = 1.0 - smoothstep(0.35, 1.0, r);
+		NORMAL = ball_normal;
+		glow = col * (1.0 - r) * 0.8;
+	} else if (shape == 5) {
+		// Dithered soft puff: coverage falls off toward the edge and is broken
+		// up by noise, then compared against an ordered-dither threshold so it
+		// stays in the opaque pass (visible through the glass refraction).
+		float n = fract(sin(dot(floor(UV * 6.0) + custom.xy * 17.0, vec2(12.9898, 78.233))) * 43758.5453);
+		float coverage = (1.0 - smoothstep(0.45, 1.0, r)) * (0.85 + 0.15 * n);
+		ivec2 px = ivec2(FRAGCOORD.xy) % 4;
+		int idx = px.x + px.y * 4;
+		float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+		alpha = step((bayer[idx] + 0.5) / 16.0, coverage);
+		NORMAL = normalize(mix(NORMAL, ball_normal, 0.5));
 	}
 
 	ALBEDO = col;

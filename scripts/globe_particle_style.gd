@@ -10,6 +10,8 @@ enum Shape {
 	BUBBLE, ## Hollow ring with a highlight, shaded like a little sphere.
 	GLITTER, ## Flat metallic chip that tumbles and catches the light.
 	RAIN, ## Thin streak stretched along the direction of travel.
+	MOTE, ## Soft glowing dot (dust, sparks).
+	CLOUD, ## Big soft dithered puff (clouds, fog, smoke).
 	CUSTOM, ## Uses custom_mesh / custom_material.
 }
 
@@ -59,6 +61,10 @@ enum Shape {
 @export_range(0.0, 2.0, 0.001) var turbulence := 0.04
 ## Extra wandering right after a shake.
 @export_range(0.0, 5.0, 0.01) var shake_turbulence := 0.6
+## Wind: how fast the fill circles around the globe's axis (globe radii / s).
+@export_range(-3.0, 3.0, 0.01) var wind := 0.0
+## Wind: steady upward draught.
+@export_range(-2.0, 2.0, 0.01) var lift := 0.0
 ## Bounciness off the glass and floor.
 @export_range(0.0, 1.0, 0.01) var restitution := 0.1
 ## How quickly particles come to rest once they touch a surface.

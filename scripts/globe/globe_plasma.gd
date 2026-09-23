@@ -7,6 +7,22 @@ extends Node3D
 ## Arcs are drawn as opaque, camera-facing ribbons (ImmediateMesh) so the
 ## glass refraction picks them up like everything else inside.
 
+const KIND := "plasma"
+## Stored in presets.
+const SETTINGS: Array[String] = ["arc_count", "arc_color", "core_color", "jitter", "arc_width", "wander_speed", "brightness", "electrode_size"]
+## Shown in the in-game editor.
+const EDITOR_ROWS := [
+	["arc_count", "Arcs", 1, 16, 1],
+	["arc_color", "Arc colour"],
+	["core_color", "Core colour"],
+	["jitter", "Jaggedness", 0.0, 2.0, 0.01],
+	["arc_width", "Arc thickness", 0.002, 0.05, 0.001],
+	["wander_speed", "Wander", 0.0, 3.0, 0.01],
+	["brightness", "Brightness", 0.0, 4.0, 0.01],
+	["electrode_size", "Electrode size", 0.03, 0.3, 0.005],
+]
+const EDITOR_HINT := "Touch or click-and-hold the glass to pull the arcs."
+
 @export_range(1, 16, 1) var arc_count := 7
 @export var arc_color := Color(0.72, 0.42, 1.0)
 @export var core_color := Color(1.0, 0.92, 1.0)
@@ -159,7 +175,7 @@ func _wall_point(end: Vector2, _e: Vector3) -> Vector3:
 	# From just above the floor up to the top of the glass.
 	var low := _globe.get_floor_height(0, 0) + _globe.globe_radius * 0.12
 	var y := lerpf(low, gc.y + shape.y_max, end.y)
-	var r := shape.radius_at(y - gc.y) * 0.96
+	var r := shape.radius_at(y - gc.y) * shape.radius_factor(sin(end.x), cos(end.x)) * 0.96
 	return Vector3(sin(end.x) * r, y, cos(end.x) * r)
 
 

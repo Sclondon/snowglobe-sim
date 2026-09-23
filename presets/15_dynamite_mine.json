@@ -1,0 +1,190 @@
+{
+	"globe": {
+		"base_accent": [
+			0.24,
+			0.12,
+			0.06,
+			1.0
+		],
+		"base_color": [
+			0.42,
+			0.3,
+			0.2,
+			1.0
+		],
+		"base_finish": 0,
+		"base_type": 0,
+		"fill": 1,
+		"floor_color": [
+			0.45,
+			0.38,
+			0.32,
+			1.0
+		],
+		"floor_depth": 0.6,
+		"floor_type": 4,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 0,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			0.95,
+			0.9,
+			0.82,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.1,
+		"snow_bumpiness": 0.06,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.95,
+			0.75,
+			0.35,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"kind": "dynamite",
+			"name": "Dynamite",
+			"settings": {
+				"blast_strength": 1.2,
+				"count": 3,
+				"fuse_time": 0.6,
+				"respawn_time": 4.0,
+				"stick_color": [
+					0.8,
+					0.12,
+					0.1,
+					1.0
+				],
+				"threshold": 1.3
+			}
+		},
+		{
+			"amount": 8,
+			"kind": "creatures",
+			"name": "Miners",
+			"seed": 0,
+			"species": {
+				"accent_color": [
+					0.95,
+					0.78,
+					0.62,
+					1.0
+				],
+				"agility": 3.0,
+				"alignment": 0.6,
+				"anim_speed": 1.0,
+				"body": 3,
+				"cohesion": 0.4,
+				"color": [
+					0.85,
+					0.6,
+					0.15,
+					1.0
+				],
+				"color_variation": 0.8,
+				"detail_color": [
+					0.15,
+					0.15,
+					0.22,
+					1.0
+				],
+				"emission": 0.0,
+				"follow_leader": 0.0,
+				"grip": 0.8,
+				"movement": 2,
+				"neighbor_radius": 4.0,
+				"panic": 1.0,
+				"panic_speed": 2.5,
+				"rest_chance": 0.2,
+				"rest_time": 2.5,
+				"separation": 1.2,
+				"size": 0.13,
+				"size_randomness": 0.2,
+				"speed": 0.3,
+				"touch_response": 0.8,
+				"wander": 1.0
+			}
+		},
+		{
+			"amount": 250,
+			"kind": "particles",
+			"name": "Dust",
+			"seed": 0,
+			"style": {
+				"color": [
+					1.0,
+					0.92,
+					0.78,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 4.0,
+				"emission": 0.9,
+				"gravity": 0.03,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": false,
+				"pop_delay": 1.5,
+				"restitution": 0.1,
+				"roughness": 0.9,
+				"shake_response": 0.08,
+				"shake_turbulence": 1.6,
+				"shape": 4,
+				"size": 0.014,
+				"size_randomness": 0.6,
+				"stickiness": 3.0,
+				"stretch": 0.12,
+				"swirl_response": 1.0,
+				"tumble_speed": 0.0,
+				"turbulence": 0.05,
+				"wind": 0.0
+			}
+		}
+	],
+	"name": "Dynamite Mine",
+	"props": [
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 1.2,
+			"type": "rocks",
+			"x": -0.45,
+			"z": 0.2
+		},
+		{
+			"color": "#6f6d68",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "rocks",
+			"x": 0.5,
+			"z": -0.3
+		},
+		{
+			"color": "#4f8a3a",
+			"rot": 0.0,
+			"scale": 0.6,
+			"type": "cactus",
+			"x": 0.1,
+			"z": -0.55
+		}
+	],
+	"version": 2
+}

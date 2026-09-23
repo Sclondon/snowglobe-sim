@@ -9,9 +9,11 @@ extends RefCounted
 ## Coordinates are glass-local: the origin is the shape's centre (the lens
 ## centre for the glass shader), +Y up.
 
-enum Kind { SPHERE, TUBE, DIAMOND, EGG }
+enum Kind { SPHERE, TUBE, DIAMOND, EGG, HOURGLASS, BOX, PYRAMID }
 
-const KIND_NAMES := ["Sphere", "Tube", "Diamond", "Egg"]
+const KIND_NAMES := ["Sphere", "Tube", "Diamond", "Egg", "Hourglass", "Box", "Pyramid"]
+## A good floor level for each kind (used when the shape is changed).
+const DEFAULT_FLOOR_DEPTH := [0.6, 0.7, 0.4, 0.6, 0.75, 0.88, 0.85]
 const LUT_SIZE := 64
 
 var kind: Kind
@@ -19,6 +21,10 @@ var kind: Kind
 var profile := PackedVector2Array()
 var sides := 64
 var flat_shaded := false
+## For flat-sided shapes the table holds the corner radius; the walls are
+## closer in between corners (see radius_factor).
+var _half_sector := 0.0
+var _apothem := 1.0
 var y_min := 0.0
 var y_max := 0.0
 var max_radius := 0.0
@@ -42,8 +48,15 @@ static func create(p_kind: Kind, size: float, width: float, height: float, facet
 	var ry := size * height
 	for p in unit:
 		s.profile.append(Vector2(p.x * rx, p.y * ry))
-	s.flat_shaded = p_kind == Kind.DIAMOND
-	s.sides = clampi(facets, 3, 32) if s.flat_shaded else 64
+	s.flat_shaded = p_kind in [Kind.DIAMOND, Kind.BOX, Kind.PYRAMID]
+	s.sides = 64
+	if p_kind == Kind.DIAMOND:
+		s.sides = clampi(facets, 3, 32)
+	elif s.flat_shaded:
+		s.sides = 4
+	if s.flat_shaded:
+		s._half_sector = PI / s.sides
+		s._apothem = cos(s._half_sector)
 	s._build_lut()
 	s.floor_y = lerpf(0.0, s.y_min, clampf(floor_depth, 0.0, 0.95))
 	s.floor_radius = s.radius_at(s.floor_y)
@@ -74,6 +87,18 @@ static func _unit_profile(k: Kind) -> PackedVector2Array:
 		Kind.DIAMOND:
 			# Pointed pavilion, girdle, crown, flat table.
 			pts.append_array([Vector2(0, -1), Vector2(1, 0.15), Vector2(1, 0.25), Vector2(0.62, 0.6), Vector2(0.62, 0.6), Vector2(0, 0.6)])
+		Kind.HOURGLASS:
+			# Two bulbs joined by a narrow neck, with flat ends.
+			var n := 40
+			pts.append(Vector2(0, -1))
+			for i in n + 1:
+				var y := -1.0 + 2.0 * i / n
+				pts.append(Vector2(0.16 + 0.84 * pow(sin(absf(y) * PI * 0.55), 0.7), y))
+			pts.append(Vector2(0, 1))
+		Kind.BOX:
+			pts.append_array([Vector2(0, -1), Vector2(1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(1, 1), Vector2(0, 1)])
+		Kind.PYRAMID:
+			pts.append_array([Vector2(0, -1), Vector2(1, -1), Vector2(1, -1), Vector2(0, 0.9)])
 	return pts
 
 
@@ -123,17 +148,37 @@ func radius_at(y: float) -> float:
 	return lerpf(lut_r[i], lut_r[i + 1], f - i)
 
 
+## Widest the glass gets anywhere below glass-local height y.
+func widest_below(y: float) -> float:
+	var best := 0.0
+	for i in LUT_SIZE + 1:
+		if y_min + i * lut_step <= y:
+			best = maxf(best, lut_r[i])
+	return best
+
+
 func slope_at(y: float) -> float:
 	var f := clampf((y - y_min) / lut_step, 0.0, LUT_SIZE)
 	var i := mini(int(f), LUT_SIZE - 1)
 	return lerpf(lut_slope[i], lut_slope[i + 1], f - i)
 
 
+## For flat-sided shapes, how far the wall is at this direction relative to
+## the corner radius (1 at a corner, cos(pi/sides) mid-face); 1 when round.
+func radius_factor(x: float, z: float) -> float:
+	if not flat_shaded:
+		return 1.0
+	# Face centres sit at multiples of the sector angle from +Z (see
+	# MeshUtil.ring_dir, which puts corners half a sector off).
+	var phi := fposmod(atan2(x, z) + _half_sector, _half_sector * 2.0) - _half_sector
+	return _apothem / cos(phi)
+
+
 ## Whether glass-local point p is inside with at least `margin` to spare.
 func contains(p: Vector3, margin := 0.0) -> bool:
 	if p.y < y_min + margin or p.y > y_max - margin:
 		return false
-	return Vector2(p.x, p.z).length() <= radius_at(p.y) - margin
+	return Vector2(p.x, p.z).length() <= radius_at(p.y) * radius_factor(p.x, p.z) - margin
 
 
 ## Random glass-local point inside, at least `margin` from the glass and

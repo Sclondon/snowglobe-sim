@@ -26,6 +26,7 @@ const FLOOR_NAMES := ["Snow", "Sand", "Grass", "Moss", "Rock"]
 const FLOOR_COLORS := [Color(0.8, 0.83, 0.88), Color(0.76, 0.66, 0.46), Color(0.3, 0.5, 0.22), Color(0.25, 0.36, 0.2), Color(0.42, 0.41, 0.39)]
 const FLOOR_ROUGHNESS := [0.85, 1.0, 0.95, 1.0, 0.9]
 const GLASS_SHADER := preload("res://shaders/glass.gdshader")
+const GLASS_INSIDE_SHADER := preload("res://shaders/glass_inside.gdshader")
 const STAND_SHADER := preload("res://shaders/stand.gdshader")
 const MAX_PROPS := 16
 
@@ -145,6 +146,9 @@ var _generated: Node3D
 var _props_root: Node3D
 var _prop_nodes: Array[Node3D] = []
 var _glass_mat: ShaderMaterial
+var _glass_inside_mat: ShaderMaterial
+var _glass_node: MeshInstance3D
+var _inside_view := false
 var _stand_mat: ShaderMaterial
 var _trim_mat: ShaderMaterial
 var _floor_mat: StandardMaterial3D
@@ -217,13 +221,24 @@ func get_obstacles() -> Array[Vector4]:
 	return out
 
 
+## Switches the glass to the version seen from inside (for the inside camera).
+func set_inside_view(on: bool) -> void:
+	_inside_view = on
+	if _glass_node:
+		_glass_node.material_override = _glass_inside_mat if on else _glass_mat
+
+
 ## Moves the globe so the glass's centre ends up at a world point.
 func set_target_center(world_center: Vector3) -> void:
 	target_position = world_center - Vector3.UP * glass_center.y
 
 
-## Gives the globe a quick back-and-forth jiggle.
+## Gives the globe a quick back-and-forth jiggle (a real physical shake when
+## it sits in a GlobeBody).
 func shake(strength := 1.0) -> void:
+	if get_parent() is GlobeBody:
+		get_parent().shake(strength)
+		return
 	_shake_time = 0.0
 	_shake_strength = strength
 
@@ -280,7 +295,8 @@ func props_changed() -> void:
 func move_prop(index: int, x: float, z: float) -> void:
 	if index < 0 or index >= props.size():
 		return
-	var v := Vector2(x, z).limit_length(0.92)
+	var v := Vector2(x, z)
+	v = v.limit_length(0.92 * get_container().radius_factor(v.x, v.y))
 	props[index]["x"] = v.x
 	props[index]["z"] = v.y
 	_place_prop(index, get_floor_radius())
@@ -301,7 +317,8 @@ func _place_prop(i: int, fr: float) -> void:
 # --- Motion ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if Engine.is_editor_hint() or delta <= 0.0:
+	# Inside a GlobeBody, physics moves the globe and fills in the motion data.
+	if Engine.is_editor_hint() or delta <= 0.0 or get_parent() is GlobeBody:
 		return
 	var goal_center := target_position + Vector3.UP * glass_center.y
 	if _shake_time >= 0.0:
@@ -374,7 +391,9 @@ func _rebuild() -> void:
 	match base_type:
 		GlobeBase.Kind.PEDESTAL:
 			var h := globe_radius * stand_height
-			_generated.add_child(GlobeBase.build_pedestal(stand_sides, h, globe_radius * stand_bottom_radius, fr * 1.06, _stand_mat))
+			# Wide enough to hide any glass that bulges out below the floor.
+			var top := maxf(fr, _shape.widest_below(_shape.floor_y))
+			_generated.add_child(GlobeBase.build_pedestal(stand_sides, h, globe_radius * stand_bottom_radius, top * 1.06, _stand_mat))
 		GlobeBase.Kind.LEGS:
 			_generated.add_child(GlobeBase.build_legs(leg_count, floor_y, fr, globe_radius, _stand_mat, _trim_mat))
 
@@ -400,7 +419,8 @@ func _rebuild() -> void:
 	var glass := MeshInstance3D.new()
 	glass.name = "Glass"
 	glass.mesh = _shape.build_mesh()
-	glass.material_override = _glass_mat
+	glass.material_override = _glass_inside_mat if _inside_view else _glass_mat
+	_glass_node = glass
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glass.position = glass_center
 	_generated.add_child(glass)
@@ -410,6 +430,8 @@ func _rebuild() -> void:
 func _make_materials() -> void:
 	_glass_mat = ShaderMaterial.new()
 	_glass_mat.shader = GLASS_SHADER
+	_glass_inside_mat = ShaderMaterial.new()
+	_glass_inside_mat.shader = GLASS_INSIDE_SHADER
 	_stand_mat = ShaderMaterial.new()
 	_stand_mat.shader = STAND_SHADER
 	_trim_mat = ShaderMaterial.new()
@@ -431,6 +453,12 @@ func _update_materials() -> void:
 	_glass_mat.set_shader_parameter("rim_bend", glass_distortion)
 	_glass_mat.set_shader_parameter("thickness", glass_thickness)
 	_glass_mat.set_shader_parameter("glass_size", globe_radius)
+	_glass_mat.set_shader_parameter("edge_highlight", 0.6 if get_container().flat_shaded else 0.0)
+	# From inside: same glass, but no water lens.
+	for p in ["tint", "edge_tint", "thickness", "glass_size", "edge_highlight"]:
+		_glass_inside_mat.set_shader_parameter(p, _glass_mat.get_shader_parameter(p))
+	_glass_inside_mat.set_shader_parameter("magnification", 1.0)
+	_glass_inside_mat.set_shader_parameter("rim_bend", 0.0)
 
 	for m in [_stand_mat, _trim_mat]:
 		m.set_shader_parameter("material_mode", int(base_finish))
@@ -479,8 +507,10 @@ func _build_floor_mesh() -> ArrayMesh:
 		var rr := rf * float(ri) / rings
 		for si in segments:
 			var a := TAU * si / segments
-			var x := sin(a) * rr
-			var z := cos(a) * rr
+			# Flat-sided glass: pull the rim in to the walls.
+			var k := get_container().radius_factor(sin(a), cos(a))
+			var x := sin(a) * rr * k
+			var z := cos(a) * rr * k
 			pts.append(Vector3(x, _snow_height_at(x, z), z))
 	for p in pts:
 		st.set_uv(Vector2(p.x, p.z) / maxf(rf * 2.0, 1e-4) + Vector2(0.5, 0.5))

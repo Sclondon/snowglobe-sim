@@ -193,6 +193,7 @@ func _simulate(delta: float) -> void:
 	var y_hi := shape.y_max
 	var inv_step := 1.0 / shape.lut_step
 	var lut_last := float(GlassShape.LUT_SIZE) - 0.001
+	var flat := shape.flat_shaded
 	# Keep particles off the inside of the glass wall.
 	var wall_gap := R * 0.02
 	var floor_y := _globe.floor_y
@@ -230,6 +231,8 @@ func _simulate(delta: float) -> void:
 	var stick := exp(-st.stickiness * delta * (1.0 - minf(_agitation, 1.0)))
 	var bounce := 1.0 + st.restitution
 	var rain := st.shape == GlobeParticleStyle.Shape.RAIN
+	var wind := st.wind
+	var lift := st.lift
 
 	for i in _pos.size():
 		var p := _pos[i]
@@ -245,6 +248,10 @@ func _simulate(delta: float) -> void:
 				sin(p.y * freq + t * 0.9 + ph),
 				sin(p.z * freq + t * 1.3 + ph * 2.0),
 				sin(p.x * freq + t * 1.1 + ph * 3.0)) * turb
+		if wind != 0.0 or lift != 0.0:
+			# Circling wind around the axis, gusting per particle, plus lift.
+			var gust := 0.7 + 0.3 * sin(t * 0.8 + _phase[i])
+			u += Vector3(p.z - gc.z, 0.0, -(p.x - gc.x)).normalized() * wind * R * gust + Vector3.UP * lift * R
 		if jolt > 0.001:
 			var r3 := Vector3(_rng.randf() - 0.5, _rng.randf() - 0.5, _rng.randf() - 0.5) * 2.0
 			v += (r3 + up * 1.3) * jolt
@@ -271,7 +278,10 @@ func _simulate(delta: float) -> void:
 		var f := clampf((ly - y_lo) * inv_step, 0.0, lut_last)
 		var k := int(f)
 		var ft := f - k
-		var wall_r := maxf(lerpf(lut[k], lut[k + 1], ft) - inset, 0.0)
+		var wall_r := lerpf(lut[k], lut[k + 1], ft)
+		if flat:
+			wall_r *= shape.radius_factor(p.x, p.z)
+		wall_r = maxf(wall_r - inset, 0.0)
 		var rr := sqrt(p.x * p.x + p.z * p.z)
 		if rr > wall_r:
 			var slope := lerpf(slopes[k], slopes[k + 1], ft)
@@ -361,3 +371,17 @@ static func glass_aabb(globe: SnowGlobe) -> AABB:
 	var shape := globe.get_container()
 	var ext := Vector3(shape.max_radius, maxf(-shape.y_min, shape.y_max), shape.max_radius)
 	return AABB(globe.glass_center - ext, ext * 2.0)
+
+
+## An explosion at globe-local `origin`: flings particles outward, harder the
+## closer they are, and stirs everything up.
+func blast(origin: Vector3, strength: float) -> void:
+	var R := _globe.globe_radius
+	for i in _pos.size():
+		var d := _pos[i] - origin
+		var dist := d.length()
+		var k := strength * R * 3.0 / (1.0 + dist / R * 3.0)
+		var jitter := Vector3(_rng.randf() - 0.5, _rng.randf() - 0.5, _rng.randf() - 0.5) * k * 0.5
+		_vel[i] += d / maxf(dist, 1e-4) * k + jitter
+		_rest[i] = 0.0
+	_agitation = maxf(_agitation, minf(strength, 1.5))
