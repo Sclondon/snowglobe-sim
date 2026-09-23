@@ -54,7 +54,6 @@ var selected: GlobeBody
 var _mode := Mode.SHELF
 var _holding: GlobeBody
 var _grab_plane := Plane()
-var _grab_height := 0.0
 var _twisting := false
 var _orbiting := false
 var _touched: SnowGlobe
@@ -464,11 +463,14 @@ func _try_grab(screen_pos: Vector2) -> bool:
 		# Grabbed the stand: take the nearest point on the ray to its centre.
 		var c := body.global_position + Vector3.UP * body.globe.floor_y * 0.5
 		point = from + dir * maxf((c - from).dot(dir), 0.0)
-	# Carry in a plane facing the camera, through the grab point, so moving up
-	# the screen lifts the globe and flicks can throw it.
-	var normal := camera.global_basis.z
-	_grab_plane = Plane(normal, point)
-	_grab_height = point.y
+	# Carry in one plane through the grab point: upright and facing the camera
+	# when it looks across the shelf (moving up the screen lifts the globe),
+	# tipping toward flat the more it looks down (so the pointer slides the
+	# globe around the shelf instead of shoving it into the table).
+	var back := camera.global_basis.z
+	var flat_back := Vector3(back.x, 0.0, back.z).normalized()
+	var down := clampf((back.y - 0.35) / 0.5, 0.0, 1.0)
+	_grab_plane = Plane(flat_back.slerp(Vector3.UP, down).normalized(), point)
 	body.grab(point)
 	_holding = body
 	return true
@@ -481,16 +483,9 @@ func _carry_to(screen_pos: Vector2) -> void:
 	if hit == null:
 		return
 	var p: Vector3 = hit
-	# The camera-facing plane can't move things toward or away from you; the
-	# more the camera looks down, the more we follow a flat plane instead so
-	# globes can travel across the whole shelf.
-	var down := clampf((-camera.global_basis.z.y - 0.1) / 0.5, 0.0, 1.0)
-	var flat = Plane(Vector3.UP, _grab_height).intersects_ray(from, dir)
-	if down > 0.0 and flat != null:
-		var f: Vector3 = flat
-		p.x = lerpf(p.x, f.x, down)
-		p.z = lerpf(p.z, f.z, down)
-	p.y = clampf(p.y, carry_height.x, carry_height.y)
+	# Never below where the grabbed point sits when the globe stands on the
+	# shelf: pulling it into the table just makes the two fight.
+	p.y = clampf(p.y, maxf(carry_height.x, _holding.grab_local.y - 0.05), maxf(carry_height.y, _holding.grab_local.y + 1.0))
 	p.x = clampf(p.x, -shelf_half_size.x - 3.0, shelf_half_size.x + 3.0)
 	p.z = clampf(p.z, -shelf_half_size.y - 3.0, shelf_half_size.y + 3.0)
 	_holding.drag_target = p

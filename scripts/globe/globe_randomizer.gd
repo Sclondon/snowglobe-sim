@@ -11,7 +11,7 @@ const THEMES := {
 	"winter": {
 		"weight": 3, "fill": SnowGlobe.Fill.WATER, "floors": [SnowGlobe.FloorType.SNOW],
 		"props": ["pine", "pine", "round_tree", "snowman", "cabin", "rocks"],
-		"layers": [["snow", 1.0], ["glitter", 0.3], ["people", 0.3]],
+		"layers": [["snow", 0.7], ["snowfall", 0.4], ["glitter", 0.3], ["birds", 0.25], ["people", 0.3]],
 	},
 	"underwater": {
 		"weight": 2, "fill": SnowGlobe.Fill.WATER, "floors": [SnowGlobe.FloorType.SAND],
@@ -22,12 +22,12 @@ const THEMES := {
 	"garden": {
 		"weight": 2, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.GRASS, SnowGlobe.FloorType.MOSS],
 		"props": ["round_tree", "round_tree", "pine", "rocks", "cabin"],
-		"layers": [["butterflies", 1.0], ["people", 0.25]],
+		"layers": [["butterflies", 1.0], ["birds", 0.4], ["people", 0.25]],
 	},
 	"desert": {
 		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.SAND],
 		"props": ["cactus", "cactus", "rocks", "anthill"],
-		"layers": [["ants", 1.0], ["people", 0.2]],
+		"layers": [["ants", 1.0], ["snake", 0.35], ["people", 0.2]],
 	},
 	"storm": {
 		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.GRASS, SnowGlobe.FloorType.ROCK],
@@ -84,6 +84,23 @@ const THEMES := {
 		"layers": [["bubbles", 1.0], ["sea_monkeys", 0.3]],
 		"tint": Color(0.82, 0.95, 0.9),
 	},
+	"dragon_lair": {
+		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.ROCK, SnowGlobe.FloorType.MOSS],
+		"props": ["rocks", "pine", "rocks", "lighthouse"],
+		"layers": [["dragon", 1.0], ["clouds", 0.5], ["glitter", 0.3]],
+	},
+	"ramen": {
+		"weight": 1, "fill": SnowGlobe.Fill.WATER, "floors": [SnowGlobe.FloorType.SAND],
+		"props": ["seaweed", "ball", "rocks"],
+		"layers": [["noodle", 1.0], ["bubbles", 0.5]],
+		"tint": Color(1.0, 0.94, 0.82),
+	},
+	"lava_lamp": {
+		"weight": 2, "fill": SnowGlobe.Fill.WATER, "floors": [SnowGlobe.FloorType.ROCK, SnowGlobe.FloorType.SAND],
+		"props": ["rocks"],
+		"layers": [["lava", 1.0], ["glitter", 0.3], ["bubbles", 0.25]],
+		"tint": Color(0.95, 0.9, 1.0),
+	},
 	"mine": {
 		"weight": 1, "fill": SnowGlobe.Fill.AIR, "floors": [SnowGlobe.FloorType.ROCK, SnowGlobe.FloorType.SAND],
 		"props": ["rocks", "rocks", "cactus", "anthill"],
@@ -95,16 +112,22 @@ const THEMES := {
 const LAYERS := {
 	"snow": ["particles", "res://particles/snow.tres", Vector2i(500, 1200)],
 	"rain": ["particles", "res://particles/rain.tres", Vector2i(350, 600)],
+	"snowfall": ["particles", "res://particles/snowfall.tres", Vector2i(350, 700)],
 	"bubbles": ["particles", "res://particles/bubbles.tres", Vector2i(40, 160)],
 	"glitter": ["particles", "res://particles/glitter.tres", Vector2i(300, 700)],
 	"sea_monkeys": ["creatures", "res://creatures/sea_monkeys.tres", Vector2i(25, 60)],
 	"butterflies": ["creatures", "res://creatures/butterflies.tres", Vector2i(12, 28)],
+	"birds": ["creatures", "res://creatures/birds.tres", Vector2i(4, 10)],
 	"ants": ["creatures", "res://creatures/ants.tres", Vector2i(25, 50)],
 	"people": ["creatures", "res://creatures/people.tres", Vector2i(5, 12)],
 	"dust": ["particles", "res://particles/dust.tres", Vector2i(250, 500)],
 	"wind": ["particles", "res://particles/wind.tres", Vector2i(180, 320)],
 	"clouds": ["particles", "res://particles/clouds.tres", Vector2i(30, 60)],
 	"plasma": ["plasma", "", Vector2i.ZERO],
+	"snake": ["snake", "", Vector2i.ZERO],
+	"dragon": ["dragon", "", Vector2i.ZERO],
+	"noodle": ["noodle", "", Vector2i.ZERO],
+	"lava": ["lava", "", Vector2i.ZERO],
 	"fireworks": ["fireworks", "", Vector2i.ZERO],
 	"dynamite": ["dynamite", "", Vector2i.ZERO],
 	"cobwebs": ["cobwebs", "", Vector2i.ZERO],
@@ -329,6 +352,24 @@ static func _roll_layers(rng: RandomNumberGenerator, options: Array) -> Array:
 					"arc_count": rng.randi_range(5, 10),
 					"arc_color": GlobePreset._encode(Color.from_hsv(fposmod(hue, 1.0), 0.6, 1.0)),
 					"jitter": rng.randf_range(0.5, 1.0),
+				}
+			"lava":
+				var hue := rng.randf()
+				entry["settings"] = {
+					"blob_count": rng.randi_range(5, 9),
+					"color_low": GlobePreset._encode(Color.from_hsv(hue, 0.85, 1.0)),
+					"color_high": GlobePreset._encode(Color.from_hsv(fposmod(hue + rng.randf_range(-0.15, 0.15), 1.0), 0.9, 0.95)),
+					"speed": rng.randf_range(0.7, 1.4),
+				}
+			"snake", "dragon", "noodle":
+				var st: int = ["snake", "dragon", "noodle"].find(recipe[0])
+				var d: Dictionary = GlobeSerpent.DEFAULTS[st]
+				entry["settings"] = {
+					"style": st,
+					"count": 1 if rng.randf() < 0.7 else 2,
+					"body_length": d["body_length"] * rng.randf_range(0.8, 1.2),
+					"color": GlobePreset._encode((d["color"] as Color).lerp(Color.from_hsv(rng.randf(), 0.7, 0.8), rng.randf_range(0.0, 0.4))),
+					"color2": GlobePreset._encode(d["color2"]),
 				}
 		out.append(entry)
 	return out

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="GlobeParticleStyle" format=3]
+
+[ext_resource type="Script" path="res://scripts/globe_particle_style.gd" id="1_style"]
+
+[resource]
+script = ExtResource("1_style")
+shape = 0
+size = 0.03
+size_randomness = 0.5
+color = Color(0.95, 0.97, 1, 1)
+emission = 0.2
+roughness = 0.8
+tumble_speed = 1.2
+gravity = 0.35
+drag = 2.5
+shake_response = 0.12
+swirl_response = 1.0
+turbulence = 0.05
+shake_turbulence = 1.2
+restitution = 0.0
+stickiness = 30.0
+pop_at_rest = true
+pop_delay = 2.5

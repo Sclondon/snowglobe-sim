@@ -14,7 +14,7 @@ const SHADER := preload("res://shaders/creature.gdshader")
 const STRIDE := 20
 const MAX_AMOUNT := 300
 
-enum State { ACTIVE, RESTING, TUMBLING, GETTING_UP }
+enum State { ACTIVE, RESTING, TUMBLING, GETTING_UP, LANDING }
 
 @export_range(0, MAX_AMOUNT, 1) var amount := 40:
 	set(v): amount = v; _queue_reset()
@@ -42,6 +42,8 @@ var _size := PackedFloat32Array()
 var _panic := PackedFloat32Array()
 var _spin: Array[Quaternion] = []
 var _spin_axis := PackedVector3Array()
+## Perchers: where they're coming in to land.
+var _target := PackedVector3Array()
 var _buf := PackedFloat32Array()
 var _rng := RandomNumberGenerator.new()
 var _agitation := 0.0
@@ -103,9 +105,9 @@ func reset(rescatter := false) -> void:
 	mat.set_shader_parameter("emission_strength", _sp.emission)
 	material_override = mat
 	# Walkers need contact shadows; small floating swimmers / fliers skip them (GPU cost on phones).
-	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if _sp.movement == CreatureSpecies.Movement.WALK else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if _sp.movement in [CreatureSpecies.Movement.WALK, CreatureSpecies.Movement.PERCH] else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	for arr in [_pos, _vel, _fwd, _wander, _spin_axis]:
+	for arr in [_pos, _vel, _fwd, _wander, _spin_axis, _target]:
 		arr.resize(n)
 	for arr in [_timer, _phase, _size, _panic]:
 		arr.resize(n)
@@ -138,7 +140,7 @@ func _spawn(i: int) -> void:
 	var gc := _globe.glass_center
 	var s := _size[i]
 	var p: Vector3
-	if _sp.movement == CreatureSpecies.Movement.WALK:
+	if _sp.movement in [CreatureSpecies.Movement.WALK, CreatureSpecies.Movement.PERCH]:
 		var a := _rng.randf() * TAU
 		var r := sqrt(_rng.randf()) * shape.floor_radius * 0.8 * shape.radius_factor(sin(a), cos(a))
 		p = Vector3(sin(a) * r, 0, cos(a) * r)
@@ -158,6 +160,13 @@ func _spawn(i: int) -> void:
 	_panic[i] = 0.0
 	_spin[i] = Quaternion.IDENTITY
 	_spin_axis[i] = Vector3.UP
+	_target[i] = p
+	if _sp.movement == CreatureSpecies.Movement.PERCH:
+		p = _push_out_of_props(p, _globe.get_obstacles(), s)
+		p.y = _globe.get_floor_height(p.x, p.z)
+		_pos[i] = p
+		_state[i] = State.RESTING
+		_timer[i] = _sp.rest_time * _rng.randf_range(0.3, 1.5)
 
 
 func _physics_process(delta: float) -> void:
@@ -187,6 +196,7 @@ func _simulate(delta: float) -> void:
 	var water := _globe.fill == SnowGlobe.Fill.WATER
 
 	var walking := _sp.movement == CreatureSpecies.Movement.WALK
+	var perching := _sp.movement == CreatureSpecies.Movement.PERCH
 	var stranded := _sp.movement == CreatureSpecies.Movement.SWIM and not water
 	var cell := maxf(_sp.size * _sp.neighbor_radius, R * 0.05)
 	var grid := _build_grid(cell, walking)
@@ -196,6 +206,12 @@ func _simulate(delta: float) -> void:
 		# Shaking scares everyone; hard jolts or tilting topple walkers.
 		if jolt * _sp.panic > 0.15:
 			_panic[i] = maxf(_panic[i], 1.0 + _rng.randf() * jolt * _sp.panic)
+			if perching:
+				# Startled: everyone up, and stay up a while.
+				if _state[i] == State.RESTING or _state[i] == State.LANDING:
+					_take_off(i, _sp.flight_time * _rng.randf_range(0.7, 1.3), up)
+				elif _state[i] == State.ACTIVE:
+					_timer[i] = maxf(_timer[i], _sp.flight_time * _rng.randf_range(0.5, 1.0))
 			if _state[i] == State.RESTING:
 				_state[i] = State.ACTIVE
 		_panic[i] = maxf(0.0, _panic[i] - delta)
@@ -209,6 +225,9 @@ func _simulate(delta: float) -> void:
 				continue
 		if stranded:
 			_start_tumble(i, Vector3.ZERO)
+			continue
+		if perching:
+			_perch(i, delta, grid, cell, obstacles, up, water)
 			continue
 		if walking:
 			if up.y < 0.6 or jolt * _sp.panic / _sp.grip > 0.5:
@@ -225,7 +244,8 @@ func _fly(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array[
 	var p := _pos[i]
 	var v := _vel[i]
 	var s := _size[i]
-	var speed := _sp.speed * R * (0.35 if (_sp.movement == CreatureSpecies.Movement.FLY and water) else 1.0)
+	var flier := _sp.movement in [CreatureSpecies.Movement.FLY, CreatureSpecies.Movement.PERCH]
+	var speed := _sp.speed * R * (0.35 if (flier and water) else 1.0)
 
 	if _state[i] == State.RESTING:
 		_timer[i] -= delta
@@ -274,13 +294,13 @@ func _fly(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array[
 	if _panic[i] > 0.0:
 		steer += _wander[i] * 2.0 + Vector3(_rng.randf() - 0.5, _rng.randf() - 0.5, _rng.randf() - 0.5) * 4.0
 		mult = lerpf(1.0, _sp.panic_speed, minf(_panic[i], 1.0))
-	if _sp.movement == CreatureSpecies.Movement.FLY:
+	if flier:
 		# Fluttering bob.
 		steer += up * sin(_phase[i] * 0.5) * 0.8
 
 	var desired := steer.normalized() * speed * mult if steer.length_squared() > 1e-8 else v
 	v = v.move_toward(desired, speed * _sp.agility * mult * delta)
-	if _sp.movement == CreatureSpecies.Movement.FLY and water:
+	if flier and water:
 		v -= up * R * 0.05 * delta
 	p += v * delta
 	var hit := _contain(p, v, s)
@@ -288,7 +308,7 @@ func _fly(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array[
 	v = hit[1]
 
 	# Landing (butterflies) when close to the floor or a prop top.
-	if _sp.rest_chance > 0.0 and _panic[i] <= 0.0 and _rng.randf() < _sp.rest_chance * delta:
+	if _sp.rest_chance > 0.0 and _panic[i] <= 0.0 and _sp.movement != CreatureSpecies.Movement.PERCH and _rng.randf() < _sp.rest_chance * delta:
 		var fh := _globe.get_floor_height(p.x, p.z)
 		if p.y - fh < R * 0.25:
 			p.y = fh + s * 0.1
@@ -301,7 +321,90 @@ func _fly(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array[
 	var spd := v.length()
 	if spd > 1e-4:
 		_fwd[i] = v / spd
-	_phase[i] += delta * TAU * _sp.anim_speed * (1.0 + 1.5 * spd / maxf(speed, 1e-4)) * (2.0 if _sp.movement == CreatureSpecies.Movement.FLY else 1.0)
+	_phase[i] += delta * TAU * _sp.anim_speed * (1.0 + 1.5 * spd / maxf(speed, 1e-4)) * (2.0 if flier else 1.0)
+
+
+## Perchers: sit about (pecking, turning), fly off when startled or on a
+## whim, and after a while come back down on the floor or a prop.
+func _perch(i: int, delta: float, grid: Dictionary, cell: float, obstacles: Array[Vector4], up: Vector3, water: bool) -> void:
+	var R := _globe.globe_radius
+	match _state[i]:
+		State.RESTING:
+			_vel[i] = Vector3.ZERO
+			_phase[i] += delta * _sp.anim_speed * 2.0
+			_timer[i] -= delta
+			if _rng.randf() < 0.25 * delta:
+				var f := _fwd[i].rotated(Vector3.UP, _rng.randf_range(-1.5, 1.5))
+				f.y = 0.0
+				if f.length_squared() > 1e-6:
+					_fwd[i] = f.normalized()
+			# Can't sit on a tipped-over floor; also leave on a whim.
+			if up.y < 0.8 or _timer[i] <= 0.0:
+				_take_off(i, _sp.flight_time * _rng.randf_range(0.3, 0.7), up)
+		State.LANDING:
+			var p := _pos[i]
+			var v := _vel[i]
+			var tgt := _target[i]
+			var to := tgt - p
+			var d := to.length()
+			var speed := _sp.speed * R
+			var want := to / maxf(d, 1e-5) * speed * clampf(d / (R * 0.4), 0.3, 1.0)
+			v = v.move_toward(want, speed * _sp.agility * 1.5 * delta)
+			p += v * delta
+			if d < _size[i] * 0.35 + R * 0.01:
+				p = tgt
+				v = Vector3.ZERO
+				_state[i] = State.RESTING
+				_timer[i] = _sp.rest_time * _rng.randf_range(0.6, 1.6)
+				var f := _fwd[i]
+				f.y = 0.0
+				_fwd[i] = f.normalized() if f.length_squared() > 1e-6 else Vector3.FORWARD
+			elif up.y < 0.8:
+				_state[i] = State.ACTIVE
+				_timer[i] = 1.0
+			_pos[i] = p
+			_vel[i] = v
+			if v.length_squared() > 1e-8:
+				_fwd[i] = v.normalized()
+			_phase[i] += delta * TAU * _sp.anim_speed * 2.0
+		_:
+			_fly(i, delta, grid, cell, obstacles, up, water)
+			_timer[i] -= delta
+			if _timer[i] <= 0.0 and _panic[i] <= 0.0:
+				if up.y < 0.8:
+					_timer[i] = 1.0
+				else:
+					_target[i] = _landing_spot(i, obstacles)
+					_state[i] = State.LANDING
+
+
+func _take_off(i: int, flight: float, up: Vector3) -> void:
+	_state[i] = State.ACTIVE
+	_timer[i] = flight
+	var f := _fwd[i]
+	_vel[i] = (up * 1.2 + f * 0.6).normalized() * _sp.speed * _globe.globe_radius * 1.3
+
+
+## Somewhere to come down: often the top of a tree or other prop, otherwise
+## a clear spot on the floor.
+func _landing_spot(i: int, obstacles: Array[Vector4]) -> Vector3:
+	var R := _globe.globe_radius
+	var tall: Array[Vector4] = []
+	for o in obstacles:
+		if o.w - _globe.get_floor_height(o.x, o.y) > R * 0.12:
+			tall.append(o)
+	if not tall.is_empty() and _rng.randf() < 0.45:
+		var o := tall[_rng.randi() % tall.size()]
+		var ang := _rng.randf() * TAU
+		var off := Vector2(cos(ang), sin(ang)) * o.z * _rng.randf_range(0.0, 0.3)
+		return Vector3(o.x + off.x, o.w - o.z * 0.05, o.y + off.y)
+	var shape := _globe.get_container()
+	var a := _rng.randf() * TAU
+	var r := sqrt(_rng.randf()) * shape.floor_radius * 0.75 * shape.radius_factor(sin(a), cos(a))
+	var p := Vector3(sin(a) * r, 0, cos(a) * r)
+	p = _push_out_of_props(p, obstacles, _size[i])
+	p.y = _globe.get_floor_height(p.x, p.z)
+	return p
 
 
 ## Wandering over the floor for walkers.
@@ -411,6 +514,8 @@ func _tumble(i: int, delta: float, up: Vector3, fling: Vector3, water: bool, str
 			_timer[i] = 0.0
 			if _sp.movement != CreatureSpecies.Movement.WALK:
 				_vel[i] = up * _sp.speed * R
+				if _sp.movement == CreatureSpecies.Movement.PERCH:
+					_timer[i] = _sp.flight_time * 0.5
 	else:
 		_timer[i] = 0.0
 
@@ -565,9 +670,12 @@ func _write_all() -> void:
 		elif walking:
 			b = _basis_for(i, _floor_normal(_pos[i]))
 		else:
-			# Swimmers and fliers bank a little but stay mostly level.
+			# Swimmers and fliers bank a little but stay mostly level (and
+			# perched birds sit level).
 			var fwd := _fwd[i]
-			fwd.y *= 0.6 if _sp.movement == CreatureSpecies.Movement.FLY else 1.0
+			if st == State.RESTING and _sp.movement == CreatureSpecies.Movement.PERCH:
+				fwd.y = 0.0
+			fwd.y *= 0.6 if _sp.movement in [CreatureSpecies.Movement.FLY, CreatureSpecies.Movement.PERCH] else 1.0
 			_fwd[i] = fwd.normalized() if fwd.length_squared() > 1e-6 else _fwd[i]
 			b = _basis_for(i, up)
 		b = b.scaled(Vector3.ONE * _size[i])
@@ -587,7 +695,7 @@ func _write_all() -> void:
 		_buf[o + 11] = p.z
 		var moving := st == State.ACTIVE and (_vel[i].length_squared() > 1e-8 or not walking)
 		_buf[o + 16] = fposmod(_phase[i], TAU * 64.0)
-		_buf[o + 17] = float(st)
+		_buf[o + 17] = float(st if st != State.LANDING else State.ACTIVE)
 		_buf[o + 19] = 1.0 if moving or st == State.TUMBLING else 0.0
 
 

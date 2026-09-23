@@ -1,0 +1,148 @@
+{
+	"globe": {
+		"base_accent": [
+			0.24,
+			0.12,
+			0.06,
+			1.0
+		],
+		"base_color": [
+			0.85,
+			0.2,
+			0.15,
+			1.0
+		],
+		"base_finish": 2,
+		"base_type": 0,
+		"field_color": [
+			0.35,
+			0.8,
+			1.0,
+			1.0
+		],
+		"fill": 0,
+		"floor_color": [
+			0.85,
+			0.6,
+			0.3,
+			1.0
+		],
+		"floor_depth": 0.6,
+		"floor_type": 1,
+		"glass_distortion": 0.15,
+		"glass_edge_tint": [
+			0.62,
+			0.78,
+			0.9,
+			1.0
+		],
+		"glass_facets": 8,
+		"glass_height": 1.0,
+		"glass_shape": 3,
+		"glass_thickness": 0.2,
+		"glass_tint": [
+			1.0,
+			0.92,
+			0.75,
+			1.0
+		],
+		"glass_width": 1.0,
+		"globe_radius": 1.0,
+		"leg_clearance": 0.25,
+		"leg_count": 4,
+		"magnification": 1.2,
+		"mound_height": 0.12,
+		"shell": 0,
+		"snow_bumpiness": 0.025,
+		"snow_seed": 1,
+		"stand_bottom_radius": 1.05,
+		"stand_height": 0.55,
+		"stand_sides": 8,
+		"trim_color": [
+			0.95,
+			0.75,
+			0.35,
+			1.0
+		]
+	},
+	"layers": [
+		{
+			"kind": "serpent",
+			"name": "Noodles",
+			"settings": {
+				"body_length": 2.4,
+				"color": [
+					0.98,
+					0.87,
+					0.55,
+					1.0
+				],
+				"color2": [
+					0.92,
+					0.74,
+					0.42,
+					1.0
+				],
+				"count": 3,
+				"speed": 0.22,
+				"style": 2,
+				"thickness": 0.045
+			}
+		},
+		{
+			"amount": 60,
+			"kind": "particles",
+			"name": "Bubbles",
+			"seed": 0,
+			"style": {
+				"color": [
+					0.75,
+					0.9,
+					1.0,
+					1.0
+				],
+				"color_gradient": null,
+				"drag": 3.0,
+				"emission": 0.1,
+				"gravity": -1.2,
+				"lift": 0.0,
+				"metallic": 0.0,
+				"pop_at_rest": true,
+				"pop_delay": 0.6,
+				"restitution": 0.3,
+				"roughness": 0.1,
+				"shake_response": 0.05,
+				"shake_turbulence": 0.4,
+				"shape": 1,
+				"size": 0.06,
+				"size_randomness": 0.7,
+				"stickiness": 4.0,
+				"stretch": 0.12,
+				"swirl_response": 0.8,
+				"tumble_speed": 0.0,
+				"turbulence": 0.12,
+				"wind": 0.0
+			}
+		}
+	],
+	"name": "Noodle Soup",
+	"props": [
+		{
+			"color": "#2f7d4f",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "seaweed",
+			"x": 0.4,
+			"z": -0.2
+		},
+		{
+			"color": "#e8b030",
+			"rot": 0.0,
+			"scale": 1.0,
+			"type": "ball",
+			"x": -0.2,
+			"z": 0.3
+		}
+	],
+	"version": 2
+}

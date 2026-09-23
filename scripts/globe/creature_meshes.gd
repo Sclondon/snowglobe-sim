@@ -5,11 +5,12 @@ extends RefCounted
 ## tall along +Y. Walkers have their feet at y = 0.
 ##
 ## UV2.x tags parts for creature.gdshader: 0 = body (per-creature colour),
-## 1 = accent, 2 = detail.
+## 1 = accent, 2 = detail, 3 = wing (body colour, animated).
 
 const BODY := 0
 const ACCENT := 1
 const DETAIL := 2
+const WING := 3
 
 static var _cache := {}
 
@@ -21,6 +22,7 @@ static func get_mesh(body: CreatureSpecies.Body) -> ArrayMesh:
 			CreatureSpecies.Body.ANT: _cache[body] = _ant()
 			CreatureSpecies.Body.PERSON: _cache[body] = _person()
 			CreatureSpecies.Body.FIREFLY: _cache[body] = _firefly()
+			CreatureSpecies.Body.BIRD: _cache[body] = _bird()
 			_: _cache[body] = _sea_monkey()
 	return _cache[body]
 
@@ -83,6 +85,25 @@ static func _firefly() -> ArrayMesh:
 	for side in [-1.0, 1.0]:
 		parts.append([_sphere(1.0), _xf(Vector3(side * 0.16, 0.05, 0.05), Vector3(0, side * -0.3, 0), Vector3(0.16, 0.01, 0.07)), ACCENT])
 		parts.append([_cyl(0.004, 0.005, 0.14), _xf(Vector3(side * 0.03, 0.04, 0.3), Vector3(1.1, 0, side * -0.4)), DETAIL])
+	return MeshUtil.merge_parts(parts)
+
+
+## Round little songbird, 1 unit long, feet at y = 0. Wings are modelled
+## spread out; the shader folds them back along the body when perched.
+static func _bird() -> ArrayMesh:
+	var parts := []
+	parts.append([_sphere(1.0), _xf(Vector3(0, 0.3, -0.02), Vector3(-0.15, 0, 0), Vector3(0.17, 0.16, 0.28)), BODY])
+	parts.append([_sphere(1.0), _xf(Vector3(0, 0.25, 0.1), Vector3.ZERO, Vector3(0.14, 0.13, 0.16)), ACCENT])
+	parts.append([_sphere(0.12), _xf(Vector3(0, 0.44, 0.22)), BODY])
+	parts.append([_cyl(0.0, 0.035, 0.12), _xf(Vector3(0, 0.43, 0.38), Vector3(PI * 0.5, 0, 0)), ACCENT])
+	# Tail fanned out behind, tipped up a little.
+	parts.append([_sphere(1.0), _xf(Vector3(0, 0.36, -0.36), Vector3(-0.35, 0, 0), Vector3(0.09, 0.02, 0.17)), BODY])
+	for side in [-1.0, 1.0]:
+		parts.append([_sphere(0.022), _xf(Vector3(side * 0.08, 0.47, 0.3)), DETAIL])
+		parts.append([_cyl(0.01, 0.01, 0.16), _xf(Vector3(side * 0.05, 0.08, 0.0)), DETAIL])
+		parts.append([_cyl(0.006, 0.006, 0.08), _xf(Vector3(side * 0.05, 0.004, 0.04), Vector3(PI * 0.5, 0, 0)), DETAIL])
+		# Wing: a flat, rounded blade out to the side from the shoulder.
+		parts.append([_sphere(1.0), _xf(Vector3(side * 0.34, 0.36, 0.0), Vector3(0, side * 0.2, 0), Vector3(0.24, 0.018, 0.12)), WING])
 	return MeshUtil.merge_parts(parts)
 
 

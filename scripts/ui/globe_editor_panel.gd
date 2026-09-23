@@ -67,12 +67,13 @@ const WALKER_BEHAVIOUR := [
 	["follow_leader", "Follow the leader", 0.0, 1.0, 0.01],
 ]
 const SHAPE_NAMES := ["Snowflake", "Bubble", "Glitter", "Rain / streak", "Dust mote", "Cloud"]
-const BODY_NAMES := ["Sea monkey", "Butterfly", "Ant", "Person", "Firefly"]
-const MOVEMENT_NAMES := ["Swim", "Fly", "Walk"]
+const BODY_NAMES := ["Sea monkey", "Butterfly", "Ant", "Person", "Firefly", "Bird"]
+const MOVEMENT_NAMES := ["Swim", "Fly", "Walk", "Perch (fly off when shaken)"]
 ## "+ Add" menu: label → [kind, preset path, amount].
 const NEW_LAYERS := {
 	"Snow": ["particles", "res://particles/snow.tres", 600],
 	"Rain": ["particles", "res://particles/rain.tres", 500],
+	"Snowfall": ["particles", "res://particles/snowfall.tres", 500],
 	"Bubbles": ["particles", "res://particles/bubbles.tres", 150],
 	"Glitter": ["particles", "res://particles/glitter.tres", 500],
 	"Dust": ["particles", "res://particles/dust.tres", 400],
@@ -80,6 +81,7 @@ const NEW_LAYERS := {
 	"Clouds / fog": ["particles", "res://particles/clouds.tres", 45],
 	"Sea monkeys": ["creatures", "res://creatures/sea_monkeys.tres", 50],
 	"Butterflies": ["creatures", "res://creatures/butterflies.tres", 20],
+	"Birds": ["creatures", "res://creatures/birds.tres", 8],
 	"Ants": ["creatures", "res://creatures/ants.tres", 40],
 	"People": ["creatures", "res://creatures/people.tres", 12],
 	"Fireflies": ["creatures", "res://creatures/fireflies.tres", 30],
@@ -91,6 +93,10 @@ const NEW_LAYERS := {
 	"Heat waves": ["heat", "", 0],
 	"Sun rays": ["sunrays", "", 0],
 	"Rainbow": ["rainbow", "", 0],
+	"Snake": ["snake", "", 0],
+	"Dragon": ["dragon", "", 0],
+	"Noodle": ["noodle", "", 0],
+	"Lava lamp": ["lava", "", 0],
 }
 
 var globe: SnowGlobe
@@ -376,6 +382,8 @@ func _creatures_editor(box: Control, layer: GlobeCreatures) -> void:
 	_rows(box, CREATURE_BEHAVIOUR, sp)
 	if sp.movement == CreatureSpecies.Movement.WALK:
 		_rows(box, WALKER_BEHAVIOUR, sp)
+	elif sp.movement == CreatureSpecies.Movement.PERCH:
+		_rows(box, [["flight_time", "Flies for (s) when startled", 0.5, 30.0, 0.1]], sp)
 
 
 func _on_add_layer(index: int) -> void:
@@ -622,6 +630,15 @@ func _rows(parent: Control, rows: Array, target: Object) -> void:
 		var setter := func(v) -> void:
 			target.set(prop, v)
 			_changed()
+		if row.size() == 3 and row[2] is Array:
+			# Dropdown: [prop, label, option names].
+			_option(parent, label, row[2], int(value), func(i: int) -> void:
+				target.set(prop, i)
+				if target.has_method("editor_option_changed"):
+					target.editor_option_changed(prop)
+				_changed()
+				_build_contents_tab.call_deferred())
+			continue
 		match typeof(value):
 			TYPE_COLOR:
 				_color(parent, label, value, setter)

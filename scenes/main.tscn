@@ -106,6 +106,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.07, 0)
 physics_material_override = SubResource("shelf_physics")
 
 [node name="Mesh" type="MeshInstance3D" parent="Shelf"]
+cast_shadow = 0
 mesh = SubResource("shelf_mesh")
 surface_material_override/0 = SubResource("shelf_mat")
 

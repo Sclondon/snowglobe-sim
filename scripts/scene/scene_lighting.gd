@@ -11,8 +11,8 @@ const MODE_NAMES := ["Spotlight", "Fireplace", "Both"]
 @export var spot_light: SpotLight3D
 @export var environment: WorldEnvironment
 ## How much the spotlight's cone swells and shrinks (fraction).
-@export_range(0.0, 0.3, 0.01) var spot_breathing := 0.08
-@export var breathing_period := 6.0
+@export_range(0.0, 0.1, 0.005) var spot_breathing := 0.02
+@export var breathing_period := 10.0
 @export var fire_color := Color(1.0, 0.55, 0.22)
 @export var fire_energy := 3.2
 @export var fire_position := Vector3(-11.0, 1.0, 3.0)

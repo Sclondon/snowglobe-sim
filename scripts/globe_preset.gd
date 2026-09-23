@@ -180,6 +180,11 @@ static func new_settings_layer(kind: String) -> Node3D:
 		"heat": return GlobeHeat.new()
 		"sunrays": return GlobeSunrays.new()
 		"rainbow": return GlobeRainbow.new()
+		"serpent": return GlobeSerpent.new()
+		"lava": return GlobeLava.new()
+		"snake": return GlobeSerpent.with_style(GlobeSerpent.Style.SNAKE)
+		"dragon": return GlobeSerpent.with_style(GlobeSerpent.Style.DRAGON)
+		"noodle": return GlobeSerpent.with_style(GlobeSerpent.Style.NOODLE)
 	return null
 
 

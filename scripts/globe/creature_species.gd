@@ -10,11 +10,13 @@ enum Body {
 	ANT, ## Three body segments and scuttling legs.
 	PERSON, ## Tiny figure that walks with swinging arms and legs.
 	FIREFLY, ## Tiny flier with a glowing tail.
+	BIRD, ## Songbird: folds its wings when perched, flaps in flight.
 }
 enum Movement {
 	SWIM, ## Schools through the fill; stranded and flopping in air.
 	FLY, ## Flutters through air; sluggish in water.
 	WALK, ## Wanders over the floor; knocked over by shaking or tilting.
+	PERCH, ## Sits on the floor or on props; takes off when shaken, flies a while, lands again.
 }
 
 @export_group("Look")
@@ -70,6 +72,8 @@ enum Movement {
 ## Chance per second to stop for a while (butterflies land, people pause).
 @export_range(0.0, 1.0, 0.01) var rest_chance := 0.0
 @export_range(0.2, 20.0, 0.1) var rest_time := 3.0
+## Perchers: how long they stay up after being startled (seconds).
+@export_range(0.5, 30.0, 0.1) var flight_time := 6.0
 ## Walkers: how hard they are to knock over.
 @export_range(0.1, 5.0, 0.01) var grip := 1.0
 ## Walkers: tendency to follow the one in front (ant trails).

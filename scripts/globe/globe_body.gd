@@ -11,12 +11,12 @@ signal fell_off
 ## Landed or hit something hard (world position, strength 0..~3).
 signal thumped(at: Vector3, strength: float)
 
-## How hard the grabbed point is pulled toward the pointer.
-@export var grab_stiffness := 260.0
-## Damping on the grabbed point (higher = less wobble while carrying).
-@export var grab_damping := 22.0
-## Strongest pull (N per kg), so fast drags don't teleport the globe.
-@export var max_grab_accel := 450.0
+## How quickly the grabbed point follows the pointer (spring frequency, Hz).
+@export var grab_frequency := 4.5
+## 1 = no overshoot; lower lets it swing a little around the pointer.
+@export var grab_damping_ratio := 0.75
+## Strongest pull (m/s² per kg), so fast drags don't teleport the globe.
+@export var max_grab_accel := 400.0
 ## Height above its spot a fallen-off globe drops back in from.
 @export var respawn_height := 6.0
 ## How long the Shake routine lasts (seconds).
@@ -214,20 +214,46 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		if t >= 1.0:
 			_shake_time = -1.0
 	if pulling:
-		var grab_world := state.transform * grab_point
-		var r := grab_world - state.transform.origin
-		var point_vel := state.linear_velocity + state.angular_velocity.cross(r)
-		var accel := (target - grab_world) * grab_stiffness - point_vel * grab_damping
-		accel = accel.limit_length(max_grab_accel)
-		# Hold against gravity too, so it hangs rather than sags.
-		state.apply_force((accel + Vector3.UP * 9.8) * mass, r)
-		state.angular_velocity *= exp(-1.2 * state.step)
+		_pull_point(state, grab_point, target, grab_frequency * (1.4 if _shake_time >= 0.0 else 1.0))
 
 	# Hard landings / knocks (for the room's dust and fog).
 	var speed := state.linear_velocity.length()
 	if _prev_speed - speed > 2.5 and state.get_contact_count() > 0:
 		thumped.emit(state.transform.origin, (_prev_speed - speed) * 0.3)
 	_prev_speed = speed
+
+
+## Soft point constraint (like Box2D's mouse joint): changes the velocities so
+## the grabbed point heads for the target as a damped spring would. Working on
+## velocities with the point's true effective mass keeps it stable however
+## stiff it is, unlike a force-based spring applied off-centre.
+func _pull_point(state: PhysicsDirectBodyState3D, local_point: Vector3, target: Vector3, freq: float) -> void:
+	var h := state.step
+	var inv_m := state.inverse_mass
+	var inv_i := state.inverse_inertia_tensor
+	var com := state.transform.origin + state.center_of_mass
+	var r := state.transform * local_point - com
+	var omega := TAU * freq
+	var k := mass * omega * omega
+	var c := 2.0 * mass * grab_damping_ratio * omega
+	var gamma := 1.0 / (h * (c + h * k))
+	var beta := h * k * gamma
+	# Effective mass matrix at the point: K = 1/m − [r]× I⁻¹ [r]× (+ softness).
+	var s := Basis(Vector3(0, r.z, -r.y), Vector3(-r.z, 0, r.x), Vector3(r.y, -r.x, 0))
+	var d := inv_m + gamma
+	var kmat := _basis_sub(Basis(Vector3(d, 0, 0), Vector3(0, d, 0), Vector3(0, 0, d)), s * inv_i * s)
+	var err := (com + r) - target
+	var point_vel := state.linear_velocity + state.angular_velocity.cross(r)
+	var impulse := kmat.inverse() * -(point_vel + err * beta)
+	# Cancel gravity too, so a held globe hangs at the pointer instead of sagging.
+	impulse += Vector3.UP * 9.8 * mass * h
+	impulse = impulse.limit_length(max_grab_accel * mass * h)
+	state.linear_velocity += impulse * inv_m
+	state.angular_velocity += inv_i * r.cross(impulse)
+
+
+static func _basis_sub(a: Basis, b: Basis) -> Basis:
+	return Basis(a.x - b.x, a.y - b.y, a.z - b.z)
 
 
 func _physics_process(delta: float) -> void:

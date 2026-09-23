@@ -163,6 +163,8 @@ void fragment() {
 	float rim_amt = rim_strength;
 	vec3 glow = vec3(0.0);
 	float rough = roughness;
+	float spec = specular;
+	float edge_dark = 0.6 + 0.25 * thickness;
 
 	if (shell_mode == 1) {
 		// Pale, frosty, with bright crack lines.
@@ -195,6 +197,10 @@ void fragment() {
 		float touch = touch_on * exp(-length(obj_pos - touch_local) / glass_size * 4.0) * 2.5;
 		glow += field_color.rgb * edges * (pulse + agitation * 2.0 + touch) + field_color.rgb * touch * 0.3;
 		rim_amt *= 1.5;
+		// A field of energy, not a surface: no glints from the lights, and no
+		// glassy darkening toward the edge.
+		spec = 0.0;
+		edge_dark = 0.15;
 	} else if (shell_mode == 6) {
 		// Magnetic field: field lines flowing from pole to pole.
 		body_tint = vec3(0.98, 0.98, 1.0);
@@ -204,6 +210,8 @@ void fragment() {
 		float flow = smoothstep(0.6, 1.0, fract(lat * 2.5 - TIME * (0.5 + agitation * 2.0) + lon * 0.2));
 		glow += field_color.rgb * lines * (0.15 + flow * 0.9) * (1.0 + agitation);
 		rim_amt *= 0.6;
+		spec = 0.0;
+		edge_dark = 0.1;
 	}
 
 	float edge = 0.0;
@@ -212,9 +220,9 @@ void fragment() {
 		edge = 1.0 - smoothstep(0.0, 0.025, min(e.x, e.y));
 	}
 	ALBEDO = vec3(0.0);
-	EMISSION = refracted * body_tint * (1.0 - (0.6 + 0.25 * thickness) * fresnel) + rim_color.rgb * (fresnel * rim_amt + edge * edge_highlight) + glow;
+	EMISSION = refracted * body_tint * (1.0 - edge_dark * fresnel) + rim_color.rgb * (fresnel * rim_amt + edge * edge_highlight) + glow;
 	ROUGHNESS = rough;
-	SPECULAR = specular;
+	SPECULAR = spec;
 	METALLIC = 0.0;
 	ALPHA = 1.0;
 }
