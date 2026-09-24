@@ -42,6 +42,9 @@ enum Mode { SHELF, INSPECT, INSIDE }
 @export_file("*.json") var starting_preset := "res://presets/01_classic_snow.json"
 ## Lowest / highest a carried globe's grab point can go.
 @export var carry_height := Vector2(0.2, 3.5)
+## How far a globe lifts off the shelf when you pick it up (globe radii), so
+## it's carried rather than dragged along the cloth.
+@export var pickup_lift := 0.3
 @export var orbit_sensitivity := 0.3
 ## Degrees of globe rotation per pixel of mouse movement in inspect mode.
 @export var twist_sensitivity := 0.4
@@ -472,8 +475,13 @@ func _try_grab(screen_pos: Vector2) -> bool:
 	var down := clampf((back.y - 0.35) / 0.5, 0.0, 1.0)
 	_grab_plane = Plane(flat_back.slerp(Vector3.UP, down).normalized(), point)
 	body.grab(point)
+	body.drag_target = point + Vector3.UP * _lift(body)
 	_holding = body
 	return true
+
+
+func _lift(body: GlobeBody) -> float:
+	return pickup_lift * body.globe.globe_radius
 
 
 func _carry_to(screen_pos: Vector2) -> void:
@@ -483,9 +491,11 @@ func _carry_to(screen_pos: Vector2) -> void:
 	if hit == null:
 		return
 	var p: Vector3 = hit
-	# Never below where the grabbed point sits when the globe stands on the
-	# shelf: pulling it into the table just makes the two fight.
-	p.y = clampf(p.y, maxf(carry_height.x, _holding.grab_local.y - 0.05), maxf(carry_height.y, _holding.grab_local.y + 1.0))
+	# Held a little off the shelf (never pulled down into it, which just makes
+	# the two fight).
+	var lift := _lift(_holding)
+	p.y += lift
+	p.y = clampf(p.y, maxf(carry_height.x, _holding.grab_local.y + lift), maxf(carry_height.y, _holding.grab_local.y + 1.0 + lift))
 	p.x = clampf(p.x, -shelf_half_size.x - 3.0, shelf_half_size.x + 3.0)
 	p.z = clampf(p.z, -shelf_half_size.y - 3.0, shelf_half_size.y + 3.0)
 	_holding.drag_target = p
