@@ -57,6 +57,11 @@ var selected: GlobeBody
 var _mode := Mode.SHELF
 var _holding: GlobeBody
 var _grab_plane := Plane()
+## Joystick-style carrying: where the pointer first hit the carry plane, and
+## where the globe's centre was lifted to at that moment.
+var _grab_start_hit := Vector3.ZERO
+var _grab_anchor := Vector3.ZERO
+var _grab_min_y := 0.0
 var _twisting := false
 var _orbiting := false
 var _touched: SnowGlobe
@@ -234,6 +239,7 @@ func _on_add_pressed() -> void:
 func _update_can_add() -> void:
 	if ui:
 		ui.set_can_add(globes.size() < max_globes)
+		ui.set_can_remove(globes.size() > 1)
 
 
 ## The spot on the shelf furthest from the other globes (ignoring `skip`).
@@ -474,8 +480,17 @@ func _try_grab(screen_pos: Vector2) -> bool:
 	var flat_back := Vector3(back.x, 0.0, back.z).normalized()
 	var down := clampf((back.y - 0.35) / 0.5, 0.0, 1.0)
 	_grab_plane = Plane(flat_back.slerp(Vector3.UP, down).normalized(), point)
-	body.grab(point)
-	body.drag_target = point + Vector3.UP * _lift(body)
+	_grab_start_hit = point
+	# Hold it by the middle of the glass, so it hangs straight and lifts
+	# straight up where it is; after that it only moves as far as the pointer
+	# moves from where it first touched (like a joystick), wherever on the
+	# globe that was.
+	var center := body.global_transform * body.globe.glass_center
+	var lift := _lift(body)
+	_grab_anchor = center + Vector3.UP * lift
+	_grab_min_y = minf(center.y, body.globe.glass_center.y) + lift
+	body.grab(center)
+	body.drag_target = _grab_anchor
 	_holding = body
 	return true
 
@@ -490,12 +505,10 @@ func _carry_to(screen_pos: Vector2) -> void:
 	var hit = _grab_plane.intersects_ray(from, dir)
 	if hit == null:
 		return
-	var p: Vector3 = hit
+	var p: Vector3 = _grab_anchor + ((hit as Vector3) - _grab_start_hit)
 	# Held a little off the shelf (never pulled down into it, which just makes
 	# the two fight).
-	var lift := _lift(_holding)
-	p.y += lift
-	p.y = clampf(p.y, maxf(carry_height.x, _holding.grab_local.y + lift), maxf(carry_height.y, _holding.grab_local.y + 1.0 + lift))
+	p.y = clampf(p.y, _grab_min_y, maxf(carry_height.y, _grab_min_y + 1.0))
 	p.x = clampf(p.x, -shelf_half_size.x - 3.0, shelf_half_size.x + 3.0)
 	p.z = clampf(p.z, -shelf_half_size.y - 3.0, shelf_half_size.y + 3.0)
 	_holding.drag_target = p

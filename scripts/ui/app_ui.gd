@@ -35,6 +35,7 @@ const ICON_SHAKE := preload("res://ui/icons/shake.svg")
 const ICON_INSPECT := preload("res://ui/icons/inspect.svg")
 const ICON_PUT_BACK := preload("res://ui/icons/put_back.svg")
 const ICON_ADD := preload("res://ui/icons/add.svg")
+const ICON_REMOVE := preload("res://ui/icons/remove.svg")
 const ICON_INSIDE := preload("res://ui/icons/inside.svg")
 const ACCENT := Color(0.62, 0.78, 1.0)
 
@@ -50,6 +51,9 @@ var _edit_button: Button
 var _shake_button: Button
 var _inspect_button: Button
 var _add_button: Button
+var _remove_button: Button
+## Seconds left to confirm a removal (tap the bin twice).
+var _remove_armed := 0.0
 var _inside_button: Button
 var _top_buttons: Array[Button] = []
 var _hint: Label
@@ -76,9 +80,10 @@ func _ready() -> void:
 
 	_inside_button = _tool_button(ICON_INSIDE, "Look from inside (V)", inside_pressed.emit)
 	_add_button = _tool_button(ICON_ADD, "Add a globe", add_globe_pressed.emit)
+	_remove_button = _tool_button(ICON_REMOVE, "Remove the selected globe", _on_remove_pressed)
 	_edit_button = _tool_button(ICON_EDIT, "Edit globe (E)", toggle_editor)
 	# Laid out right-to-left from the top-right corner.
-	_top_buttons = [_edit_button, _add_button, _inside_button]
+	_top_buttons = [_edit_button, _add_button, _remove_button, _inside_button]
 	_shake_button = _tool_button(ICON_SHAKE, "Shake (Space)", shake_pressed.emit, &"BigButton")
 	_inspect_button = _tool_button(ICON_INSPECT, "Inspect (I)", inspect_pressed.emit, &"BigButton")
 
@@ -105,6 +110,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _fps:
 		_fps.text = "%d fps" % Engine.get_frames_per_second()
+	if _remove_armed > 0.0:
+		_remove_armed -= delta
+		if _remove_armed <= 0.0:
+			_remove_button.modulate = Color.WHITE
 	if _autosave_in > 0.0:
 		_autosave_in -= delta
 		if _autosave_in <= 0.0:
@@ -154,6 +163,25 @@ func set_scene_settings(settings: SceneSettings) -> void:
 ## Whether another globe fits on the shelf.
 func set_can_add(can_add: bool) -> void:
 	_add_button.disabled = not can_add
+
+
+## The remove button only shows while there's more than one globe.
+## First tap arms the bin (it turns red), a second tap within a few seconds
+## removes the selected globe.
+func _on_remove_pressed() -> void:
+	if _remove_armed > 0.0:
+		_remove_armed = 0.0
+		_remove_button.modulate = Color.WHITE
+		remove_globe_requested.emit()
+		return
+	_remove_armed = 3.0
+	_remove_button.modulate = Color(1.0, 0.45, 0.4)
+	_show_hint("Tap the bin again to remove the selected globe.")
+
+
+func set_can_remove(can_remove: bool) -> void:
+	_remove_button.visible = can_remove
+	_layout()
 
 
 ## Called by main when the view mode changes (0 shelf, 1 inspect, 2 inside).
