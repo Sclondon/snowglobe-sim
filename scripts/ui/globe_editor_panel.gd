@@ -143,6 +143,8 @@ func _ready() -> void:
 	_tabs.tab_changed.connect(func(t: int) -> void: props_tab_toggled.emit(t == Tab.PROPS and is_visible_in_tree()))
 	visibility_changed.connect(func() -> void: props_tab_toggled.emit(_tabs.current_tab == Tab.PROPS and is_visible_in_tree()))
 
+	Unlocks.events.changed.connect(refresh)
+
 	_status = Label.new()
 	_status.theme_type_variation = &"HintLabel"
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -213,19 +215,34 @@ func _build_globe_tab() -> void:
 	_clear(box)
 	var rebuild := func() -> void: _build_globe_tab.call_deferred()
 
+	_heading(box, "Name")
+	var title := LineEdit.new()
+	title.text = globe.title
+	title.placeholder_text = "Name your snow globe"
+	title.max_length = GlobeLabel.MAX_CHARS
+	title.text_changed.connect(func(t: String) -> void:
+		globe.title = t
+		_changed())
+	box.add_child(title)
+	if globe.creator != "":
+		_hint(box, "Made by " + globe.creator)
+	var locked := Unlocks.locked_in(GlobePreset.capture(globe, ""))
+	if not locked.is_empty():
+		_hint(box, "Uses locked effects: %s. They stay, but can't be added again once removed." % ", ".join(locked))
+
 	_heading(box, "Glass")
 	_option(box, "Shape", GlassShape.KIND_NAMES, globe.glass_shape, func(i: int) -> void:
 		globe.glass_shape = i as GlassShape.Kind
 		globe.floor_depth = GlassShape.DEFAULT_FLOOR_DEPTH[i]
-		rebuild.call())
+		rebuild.call(), Unlocks.SHAPE_IDS)
 	_option(box, "Shell", SnowGlobe.SHELL_NAMES, globe.shell, func(i: int) -> void:
 		globe.shell = i as SnowGlobe.Shell
 		globe.glass_tint = SnowGlobe.SHELL_TINTS[i]
-		rebuild.call())
+		rebuild.call(), Unlocks.SHELL_IDS)
 	if globe.shell in [SnowGlobe.Shell.FORCEFIELD, SnowGlobe.Shell.MAGNETIC]:
 		_rows(box, [["field_color", "Field colour"]], globe)
 	_rows(box, [
-		["globe_radius", "Size", 0.35, 2.2, 0.01],
+		["globe_radius", "Size", SnowGlobe.MIN_RADIUS, SnowGlobe.MAX_RADIUS, 0.01],
 		["glass_width", "Width", 0.6, 1.6, 0.01],
 		["glass_height", "Height", 0.6, 1.8, 0.01],
 	], globe)
@@ -246,7 +263,7 @@ func _build_globe_tab() -> void:
 	_heading(box, "Stand")
 	_option(box, "Type", GlobeBase.KIND_NAMES, globe.base_type, func(i: int) -> void:
 		globe.base_type = i as GlobeBase.Kind
-		rebuild.call())
+		rebuild.call(), Unlocks.STAND_IDS)
 	if globe.base_type != GlobeBase.Kind.NONE:
 		_option(box, "Material", GlobeBase.FINISH_NAMES, globe.base_finish, func(i: int) -> void:
 			globe.base_finish = i as GlobeBase.Finish
@@ -306,7 +323,9 @@ func _build_contents_tab() -> void:
 	add.text = "+ Add"
 	add.flat = false
 	for key in NEW_LAYERS:
-		add.get_popup().add_item(key)
+		var id := _menu_layer_id(key)
+		add.get_popup().add_item(key + Unlocks.lock_suffix(id))
+		add.get_popup().set_item_disabled(add.get_popup().item_count - 1, not Unlocks.is_unlocked(id))
 	add.get_popup().add_item("Copy of this layer")
 	add.get_popup().index_pressed.connect(_on_add_layer)
 	picker_row.add_child(add)
@@ -351,16 +370,23 @@ func _particles_editor(box: Control, layer: GlobeParticles) -> void:
 	_slider(box, "Amount", 0, 3000, 1, layer.amount, func(v: float) -> void:
 		layer.amount = int(v)
 		_changed())
+	var shape_locks := []
+	for i in SHAPE_NAMES.size():
+		shape_locks.append(Unlocks.PARTICLE_SHAPE_IDS.get(i))
 	_option(box, "Shape", SHAPE_NAMES, mini(style.shape, SHAPE_NAMES.size() - 1), func(i: int) -> void:
 		style.shape = i as GlobeParticleStyle.Shape
-		_build_contents_tab.call_deferred())
+		_build_contents_tab.call_deferred(), shape_locks)
 	_heading(box, "Look")
 	_rows(box, PARTICLE_LOOK, style)
 	if style.shape == GlobeParticleStyle.Shape.RAIN:
 		_rows(box, [["stretch", "Streak length", 0.0, 0.5, 0.005]], style)
 	_multicolour(box, style)
 	_heading(box, "Motion")
-	_rows(box, PARTICLE_MOTION, style)
+	# Strong wind is the Wind effect: capped unless that's unlocked.
+	var motion := PARTICLE_MOTION
+	if not Unlocks.is_unlocked("layer:wind") and absf(style.wind) <= 0.3:
+		motion = PARTICLE_MOTION.map(func(r: Array) -> Array: return ["wind", r[1] + Unlocks.lock_suffix("layer:wind"), -0.3, 0.3, 0.01] if r[0] == "wind" else r)
+	_rows(box, motion, style)
 
 
 func _creatures_editor(box: Control, layer: GlobeCreatures) -> void:
@@ -371,7 +397,7 @@ func _creatures_editor(box: Control, layer: GlobeCreatures) -> void:
 		layer.amount = int(v)
 		_changed())
 	_option(box, "Body", BODY_NAMES, sp.body, func(i: int) -> void:
-		sp.body = i as CreatureSpecies.Body)
+		sp.body = i as CreatureSpecies.Body, Unlocks.BODY_IDS)
 	_option(box, "Moves by", MOVEMENT_NAMES, sp.movement, func(i: int) -> void:
 		sp.movement = i as CreatureSpecies.Movement
 		layer.reset(true)
@@ -386,8 +412,29 @@ func _creatures_editor(box: Control, layer: GlobeCreatures) -> void:
 		_rows(box, [["flight_time", "Flies for (s) when startled", 0.5, 30.0, 0.1]], sp)
 
 
+## Unlock id of a "+ Add" menu entry ("" = free).
+func _menu_layer_id(key: String) -> String:
+	var info: Array = NEW_LAYERS[key]
+	match info[0]:
+		"particles":
+			var st: GlobeParticleStyle = load(info[1])
+			return Unlocks.layer_id({"kind": "particles", "style": {"shape": st.shape, "wind": st.wind}})
+		"creatures":
+			var sp: CreatureSpecies = load(info[1])
+			return Unlocks.layer_id({"kind": "creatures", "species": {"body": sp.body}})
+	return Unlocks.layer_id({"kind": info[0]})
+
+
 func _on_add_layer(index: int) -> void:
 	var layers := GlobePreset.get_layers(globe)
+	if index < NEW_LAYERS.size() and not Unlocks.is_unlocked(_menu_layer_id(NEW_LAYERS.keys()[index])):
+		_set_status("That's locked — unlock it with tickets.")
+		return
+	if index >= NEW_LAYERS.size() and not layers.is_empty():
+		var copy: Dictionary = GlobePreset.capture(globe, "")["layers"][clampi(_layer_index, 0, layers.size() - 1)]
+		if not Unlocks.is_unlocked(Unlocks.layer_id(copy)):
+			_set_status("That layer is locked, so it can't be copied.")
+			return
 	if layers.size() >= GlobePreset.MAX_LAYERS:
 		_set_status("That's the most layers a globe can have.")
 		return
@@ -462,8 +509,11 @@ func _build_props_tab() -> void:
 	add.flat = false
 	var ids := PropLibrary.type_ids()
 	for id in ids:
-		add.get_popup().add_item(PropLibrary.info(id)["name"])
+		add.get_popup().add_item(PropLibrary.info(id)["name"] + Unlocks.lock_suffix("prop:" + id))
+		add.get_popup().set_item_disabled(add.get_popup().item_count - 1, not Unlocks.is_unlocked("prop:" + id))
 	add.get_popup().index_pressed.connect(func(i: int) -> void:
+		if not Unlocks.is_unlocked("prop:" + ids[i]):
+			return
 		if globe.props.size() >= SnowGlobe.MAX_PROPS:
 			_set_status("That's as many props as fit.")
 			return
@@ -502,7 +552,7 @@ func _build_props_tab() -> void:
 		prop["color"] = PropLibrary.info(ids[i])["color"]
 		globe.props_changed()
 		_changed()
-		_build_props_tab.call_deferred())
+		_build_props_tab.call_deferred(), ids.map(func(id: String) -> String: return "prop:" + id))
 	_slider(box, "Size", 0.3, 2.5, 0.01, float(prop.get("scale", 1.0)), func(v: float) -> void:
 		prop["scale"] = v
 		globe.move_prop(idx, float(prop["x"]), float(prop["z"]))
@@ -556,6 +606,7 @@ func _build_presets_tab() -> void:
 	_preset_name.placeholder_text = "Preset name"
 	_preset_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_preset_name.max_length = 40
+	_preset_name.text = globe.title
 	_preset_name.text_submitted.connect(func(_t: String) -> void: _save_preset())
 	save_row.add_child(_preset_name)
 	var save := Button.new()
@@ -572,6 +623,9 @@ func _build_presets_tab() -> void:
 
 	_heading(_presets_box, "Load")
 	for entry in GlobePreset.list_presets():
+		# Built-in presets using effects the player hasn't unlocked stay hidden.
+		if entry["builtin"] and not Unlocks.preset_allowed(GlobePreset.load_file(entry["path"])):
+			continue
 		var row := HBoxContainer.new()
 		_presets_box.add_child(row)
 		var load_button := Button.new()
@@ -632,12 +686,13 @@ func _rows(parent: Control, rows: Array, target: Object) -> void:
 			_changed()
 		if row.size() == 3 and row[2] is Array:
 			# Dropdown: [prop, label, option names].
+			var locks: Array = Unlocks.SERPENT_IDS if target is GlobeSerpent and prop == "style" else []
 			_option(parent, label, row[2], int(value), func(i: int) -> void:
 				target.set(prop, i)
 				if target.has_method("editor_option_changed"):
 					target.editor_option_changed(prop)
 				_changed()
-				_build_contents_tab.call_deferred())
+				_build_contents_tab.call_deferred(), locks)
 			continue
 		match typeof(value):
 			TYPE_COLOR:
@@ -746,7 +801,9 @@ func _check(parent: Control, label: String, value: bool, on_change: Callable) ->
 	parent.add_child(c)
 
 
-func _option(parent: Control, label: String, items: Array, selected: int, on_change: Callable) -> void:
+## `locks`: an unlock id (or null) per item; locked items are greyed out
+## with their ticket price (the current choice stays shown either way).
+func _option(parent: Control, label: String, items: Array, selected: int, on_change: Callable, locks: Array = []) -> void:
 	var row := HBoxContainer.new()
 	parent.add_child(row)
 	var l := Label.new()
@@ -755,8 +812,11 @@ func _option(parent: Control, label: String, items: Array, selected: int, on_cha
 	row.add_child(l)
 	var o := OptionButton.new()
 	o.focus_mode = Control.FOCUS_NONE
-	for item in items:
-		o.add_item(item)
+	for i in items.size():
+		var id = locks[i] if i < locks.size() else null
+		o.add_item(String(items[i]) + Unlocks.lock_suffix(id))
+		if not Unlocks.is_unlocked(id) and i != selected:
+			o.set_item_disabled(i, true)
 	o.select(selected)
 	o.item_selected.connect(func(i: int) -> void:
 		on_change.call(i)

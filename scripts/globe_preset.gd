@@ -53,7 +53,10 @@ static func capture(globe: SnowGlobe, preset_name: String) -> Dictionary:
 				settings[prop] = _encode(layer.get(prop))
 			entry["settings"] = settings
 		layers.append(entry)
-	return {"version": VERSION, "name": preset_name, "globe": g, "props": _clean_props(globe.props), "layers": layers}
+	var out := {"version": VERSION, "name": preset_name if preset_name != "" else globe.title, "globe": g, "props": _clean_props(globe.props), "layers": layers}
+	if globe.creator != "":
+		out["creator"] = globe.creator
+	return out
 
 
 ## Every stored script property of a style / species resource.
@@ -82,6 +85,11 @@ static func apply(globe: SnowGlobe, data: Dictionary) -> void:
 			var v = _decode(g[prop], globe.get(prop))
 			if v != null:
 				globe.set(prop, v)
+	globe.globe_radius = clampf(globe.globe_radius, SnowGlobe.MIN_RADIUS, SnowGlobe.MAX_RADIUS)
+	# Older sessions saved every globe as "Globe": treat that as untitled.
+	var t := String(data.get("name", ""))
+	globe.title = "" if t == "Globe" else t
+	globe.creator = String(data.get("creator", ""))
 	if data.has("props"):
 		globe.props = _clean_props(data["props"])
 	elif g.has("show_placeholder_tree"):
@@ -343,7 +351,7 @@ static func delete_user(path: String) -> void:
 static func save_session(globes: Array[SnowGlobe], scene := {}) -> void:
 	var list := []
 	for g in globes:
-		list.append(capture(g, "Globe"))
+		list.append(capture(g, ""))
 	_write(LAST_SESSION_PATH, {"version": 3, "globes": list, "scene": scene})
 
 

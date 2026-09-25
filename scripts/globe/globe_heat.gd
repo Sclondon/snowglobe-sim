@@ -15,8 +15,7 @@ const EDITOR_ROWS := [
 @export var warm_glow := true:
 	set(v):
 		warm_glow = v
-		if _light:
-			_light.visible = v
+		_update_light()
 @export var glow_color := Color(1.0, 0.55, 0.25):
 	set(v):
 		glow_color = v
@@ -45,6 +44,12 @@ func _ready() -> void:
 	_light.visible = warm_glow
 	_light.shadow_enabled = false
 	add_child(_light)
+	_globe.detail_changed.connect(_update_light)
+
+
+func _update_light() -> void:
+	if _light:
+		_light.visible = warm_glow and _globe != null and _globe.detail == SnowGlobe.Detail.FULL
 
 
 func _exit_tree() -> void:
@@ -54,6 +59,9 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	if _globe == null:
+		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
 		return
 	_time += delta
 	_globe.set_heat(strength * (1.0 + _globe.agitation * 1.5))

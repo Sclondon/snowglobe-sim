@@ -151,6 +151,10 @@ func _place_electrode() -> void:
 func _process(delta: float) -> void:
 	if _globe == null:
 		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
+		return
+	_light.visible = _globe.detail == SnowGlobe.Detail.FULL
 	_time += delta
 	for m in [_arc_mat, _spot_mat]:
 		m.set_shader_parameter("arc_color", arc_color)

@@ -38,8 +38,7 @@ const MAX_BLOBS := 12
 @export var lamp_light := true:
 	set(v):
 		lamp_light = v
-		if _light:
-			_light.visible = v
+		_update_light()
 
 var _globe: SnowGlobe
 var _mat: ShaderMaterial
@@ -74,10 +73,16 @@ func _ready() -> void:
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_light = OmniLight3D.new()
 	_light.shadow_enabled = false
-	_light.visible = lamp_light
 	add_child(_light)
+	_globe.detail_changed.connect(_update_light)
+	_update_light()
 	_globe.rebuilt.connect(_queue_build)
 	_build()
+
+
+func _update_light() -> void:
+	if _light:
+		_light.visible = lamp_light and _globe != null and _globe.detail == SnowGlobe.Detail.FULL
 
 
 func _queue_build() -> void:
@@ -140,6 +145,9 @@ func _apply_params() -> void:
 
 func _physics_process(delta: float) -> void:
 	if _globe == null or _pos.is_empty() or delta <= 0.0:
+		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
 		return
 	_time += delta
 	var R := _globe.globe_radius

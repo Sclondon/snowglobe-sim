@@ -37,3 +37,19 @@ Add `?fps` to the page address to show the frame rate.
 ## Publishing the website
 
 `tools/deploy_web.sh` exports the web build and pushes it to the `gh-pages` branch, which GitHub Pages serves. It needs Godot's web export templates installed.
+
+## Arcade integration (tickets, unlocks, community shelf)
+
+Nothing is wired to accounts yet; these are the hooks the site can use.
+
+**Unlocks.** Effects are locked or free per `scripts/unlocks.gd` (`CATALOG` holds every unlockable id with a placeholder ticket price, e.g. `layer:lava`, `layer:dragon`, `shell:forcefield`, `shape:pyramid`, `stand:platform`, `prop:frog`). Locked items show greyed out with their price in the editor, the randomizers never use them, and built-in presets that need them are hidden. Viewing is never locked.
+- Set before the game loads: `window.snowglobe = { unlocks: ["layer:lava", "shell:ice"] }`
+- Change any time: `window.snowglobe.setUnlocks(["layer:lava", ...])`
+- Saved to `user://unlocks.json` (`{"unlocked": [...]}`) alongside the session.
+- Testing: add `?unlock=all` to the page address.
+
+**Labels.** Each globe has a `name` (players edit it in the editor's Globe tab) and a `creator` (set by the site) in its preset JSON; both show on a brass plaque at the front of the stand.
+
+**Community shelf.** The people button opens a display cabinet of everyone's globes (view-only; tap one for a closer look). It loads a JSON array of globe presets (or `{"globes": [...]}`) from, in order: `window.snowglobe.community` (the array, or a URL), `?community=<url>`, or `community.json` next to `index.html`. Without any of those it shows a generated demo shelf.
+
+**Performance.** Every globe has a detail level: full, lite (stepped every few frames, fewer particles, no per-globe lights) or asleep (off screen). Settled snow stops simulating until the globe moves. Add `?fps` to the address to see frame rate and how many globes are awake.

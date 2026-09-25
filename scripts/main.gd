@@ -21,6 +21,9 @@ extends Node3D
 ## (E opens the editor, F11 toggles fullscreen — see app_ui.gd.)
 
 enum Mode { SHELF, INSPECT, INSIDE }
+## My shelf (your own globes, with physics and the editor) or the community
+## cabinet (everyone's, view-only).
+enum View { MY_SHELF, COMMUNITY }
 
 ## The most globes the shelf holds. Change freely.
 @export var max_globes := 8
@@ -53,6 +56,11 @@ enum Mode { SHELF, INSPECT, INSIDE }
 
 var globes: Array[GlobeBody] = []
 var selected: GlobeBody
+var view := View.MY_SHELF
+var community: CommunityCabinet
+var _community_source: CommunitySource
+var _community_requested := false
+var _shelf_camera := {}
 
 var _mode := Mode.SHELF
 var _holding: GlobeBody
@@ -82,6 +90,7 @@ var _prop_grab := Vector2.ZERO
 
 
 func _ready() -> void:
+	Unlocks.load_all()
 	_globes_root = Node3D.new()
 	_globes_root.name = "Globes"
 	add_child(_globes_root)
@@ -90,10 +99,17 @@ func _ready() -> void:
 
 	if ui:
 		ui.shake_pressed.connect(func() -> void:
-			if selected:
+			if view == View.COMMUNITY:
+				community.shake()
+			elif selected:
 				shake_globe(selected))
+		ui.community_pressed.connect(func() -> void: set_view(View.MY_SHELF if view == View.COMMUNITY else View.COMMUNITY))
 		ui.set_scene_settings(scene_settings)
-		ui.inspect_pressed.connect(func() -> void: _set_mode(Mode.SHELF if _mode == Mode.INSPECT else Mode.INSPECT))
+		ui.inspect_pressed.connect(func() -> void:
+			if view == View.COMMUNITY:
+				community.view(null)
+			else:
+				_set_mode(Mode.SHELF if _mode == Mode.INSPECT else Mode.INSPECT))
 		ui.inside_pressed.connect(func() -> void: _set_mode(Mode.SHELF if _mode == Mode.INSIDE else Mode.INSIDE))
 		ui.add_globe_pressed.connect(_on_add_pressed)
 		ui.remove_globe_requested.connect(remove_selected)
@@ -101,8 +117,22 @@ func _ready() -> void:
 		ui.view_rect_changed.connect(func(r: Rect2) -> void:
 			_view_rect = r
 			camera.view_rect = r)
+	community = CommunityCabinet.new()
+	community.name = "CommunityCabinet"
+	community.camera = camera
+	community.visible = false
+	add_child(community)
+	if ui:
+		community.viewing_changed.connect(ui.set_community_viewing)
+	_community_source = CommunitySource.new()
+	add_child(_community_source)
+	_community_source.loaded.connect(community.show_list)
+
 	var motion := DeviceShake.new()
 	motion.shaken.connect(func(strength: float) -> void:
+		if view == View.COMMUNITY:
+			community.shake()
+			return
 		for g in globes:
 			shake_globe(g, strength))
 	add_child(motion)
@@ -125,6 +155,13 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if view == View.COMMUNITY:
+		_aim_spot(community.viewing.global_transform * community.viewing.glass_center if community.viewing else camera.focus, delta)
+		return
+	# My globes run in full while the camera can see them, and sleep when not.
+	for b in globes:
+		var on_screen := camera.is_position_in_frustum(b.global_transform * b.globe.glass_center) or b == selected
+		b.globe.detail = SnowGlobe.Detail.FULL if on_screen else SnowGlobe.Detail.ASLEEP
 	if selected == null:
 		return
 	var sel_pos := selected.global_position
@@ -152,6 +189,52 @@ func _process(delta: float) -> void:
 	_ring_mat.albedo_color.a = _ring_alpha
 	_ring.visible = _ring_alpha > 0.01 and _mode == Mode.SHELF and sel_pos.y > -0.5
 	_ring.global_position = Vector3(sel_pos.x, 0.012, sel_pos.z)
+
+
+## Swaps between my shelf and the community cabinet. My globes are hidden and
+## paused (physics too) while the cabinet is open.
+func set_view(v: View) -> void:
+	if v == view:
+		return
+	_set_mode(Mode.SHELF)
+	_release()
+	_touches.clear()
+	view = v
+	var mine := v == View.MY_SHELF
+	for n in [_globes_root, get_node_or_null("Shelf"), get_node_or_null("Tablecloth")]:
+		if n:
+			n.visible = mine
+	_globes_root.process_mode = Node.PROCESS_MODE_INHERIT if mine else Node.PROCESS_MODE_DISABLED
+	_ring.visible = false
+	community.visible = not mine
+	if mine:
+		community.view(null)
+		for g in community.globes:
+			g.detail = SnowGlobe.Detail.ASLEEP
+		camera.focus = _shelf_camera["focus"]
+		camera.distance = _shelf_camera["distance"]
+		camera.pitch_degrees = _shelf_camera["pitch"]
+		camera.yaw_degrees = _shelf_camera["yaw"]
+	else:
+		_shelf_camera = {"focus": camera.focus, "distance": camera.distance, "pitch": camera.pitch_degrees, "yaw": camera.yaw_degrees}
+		if not _community_requested:
+			_community_requested = true
+			_community_source.fetch()
+		camera.yaw_degrees = 0.0
+		camera.pitch_degrees = -4.0
+		camera.distance = 11.0
+		camera.focus = community.home_focus()
+	if ui:
+		ui.set_view(not mine)
+
+
+func _aim_spot(aim: Vector3, delta: float) -> void:
+	if spot_light == null:
+		return
+	var basis_want := spot_light.global_transform.looking_at(aim, Vector3.UP).basis
+	spot_light.global_basis = spot_light.global_basis.slerp(basis_want, 1.0 - exp(-4.0 * delta))
+	# From up and in front: the cabinet's shelves would block light from above.
+	spot_light.global_position = spot_light.global_position.lerp(Vector3(aim.x, aim.y + 3.5, aim.z + 9.0), 1.0 - exp(-2.0 * delta))
 
 
 # --- Globes on the shelf ----------------------------------------------------------
@@ -299,6 +382,9 @@ func _globe_at(screen_pos: Vector2) -> GlobeBody:
 # --- Input --------------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
+	if view == View.COMMUNITY:
+		_community_input(event)
+		return
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		_on_touch(event)
 	elif event is InputEventMouseButton:
@@ -331,6 +417,54 @@ func _unhandled_input(event: InputEvent) -> void:
 				_set_mode(Mode.SHELF)
 				for g in globes:
 					g.respawn(g.home)
+
+
+## Community cabinet: one finger / left button browses (or turns the viewed
+## globe) and taps; two fingers pinch to zoom and pan.
+func _community_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touches[event.index] = event.position
+		else:
+			_touches.erase(event.index)
+		if _touches.size() >= 2:
+			community.pointer_up(Vector2(-1e6, -1e6))
+			_pinch_distance = _touch_spread()
+			_pinch_center = _touch_center()
+	elif event is InputEventScreenDrag:
+		_touches[event.index] = event.position
+		if _touches.size() >= 2:
+			var spread := _touch_spread()
+			var center := _touch_center()
+			if _pinch_distance > 1.0 and spread > 1.0:
+				camera.zoom(_pinch_distance / spread)
+			community.pan(center - _pinch_center)
+			_pinch_distance = spread
+			_pinch_center = center
+	elif event is InputEventMouseButton:
+		match event.button_index:
+			MOUSE_BUTTON_LEFT:
+				if _touches.size() >= 2:
+					return
+				if event.pressed:
+					community.pointer_down(event.position)
+				else:
+					community.pointer_up(event.position)
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+				if event.pressed:
+					camera.zoom(0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 0.9)
+	elif event is InputEventMouseMotion:
+		if _touches.size() < 2 and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			community.pointer_move(event.position, event.relative)
+	elif event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_SPACE:
+				community.shake()
+			KEY_ESCAPE:
+				if community.viewing:
+					community.view(null)
+				else:
+					set_view(View.MY_SHELF)
 
 
 ## Mouse, and single-finger touch (which Godot turns into mouse events).

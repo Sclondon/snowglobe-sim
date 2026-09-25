@@ -93,6 +93,9 @@ func _queue_build() -> void:
 func _physics_process(delta: float) -> void:
 	if _globe == null or _mat == null:
 		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
+		return
 	var kick := _globe.linear_acceleration.length() * 0.01 + _globe.angular_velocity.length() * 0.15
 	_wobble = maxf(_wobble * exp(-3.0 * delta), minf(kick, 2.0))
 	_mat.set_shader_parameter("wobble", _wobble * _globe.globe_radius * 0.03)

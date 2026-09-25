@@ -326,6 +326,9 @@ func _make_head(s: Serpent) -> void:
 func _physics_process(delta: float) -> void:
 	if _globe == null or _serpents.is_empty() or delta <= 0.0:
 		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
+		return
 	var R := _globe.globe_radius
 	var inv := _globe.global_basis.orthonormalized().inverse()
 	var up := inv * Vector3.UP

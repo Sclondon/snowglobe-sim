@@ -111,6 +111,9 @@ func _validate_property(property: Dictionary) -> void:
 func _physics_process(delta: float) -> void:
 	if _globe == null or Engine.is_editor_hint():
 		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
+		return
 	var R := _globe.globe_radius
 	var inv := _globe.global_basis.orthonormalized().inverse()
 	var up := inv * Vector3.UP

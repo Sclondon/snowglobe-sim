@@ -108,6 +108,36 @@ const THEMES := {
 	},
 }
 
+## Default names: an adjective and a noun from the theme (players can rename).
+const NAME_WORDS := {
+	"winter": [["Snowy", "Frosty", "Silent", "Cozy", "Starlit"], ["Village", "Pines", "Night", "Cabin", "Hollow"]],
+	"underwater": [["Deep", "Coral", "Sunken", "Bubbly"], ["Reef", "Lagoon", "Grotto", "Tank"]],
+	"garden": [["Sunny", "Secret", "Blooming", "Little"], ["Garden", "Meadow", "Grove", "Orchard"]],
+	"desert": [["Dusty", "Golden", "Lonely", "Scorching"], ["Dunes", "Mesa", "Oasis", "Canyon"]],
+	"storm": [["Stormy", "Wild", "Rainy", "Gloomy"], ["Coast", "Harbour", "Heights", "Squall"]],
+	"plasma": [["Crackling", "Electric", "Neon", "Humming"], ["Orb", "Core", "Reactor", "Spark"]],
+	"party": [["Glittering", "Dazzling", "Sparkly", "Fancy"], ["Party", "Ball", "Gala", "Disco"]],
+	"attic": [["Dusty", "Forgotten", "Creaky", "Old"], ["Attic", "Cellar", "Keepsake", "Corner"]],
+	"celebration": [["Festive", "Jolly", "Bright", "Merry"], ["Fireworks", "New Year", "Festival", "Finale"]],
+	"sky": [["Cloudy", "Breezy", "Lofty", "Drifting"], ["Skies", "Lighthouse", "Isle", "Horizon"]],
+	"meadow_night": [["Twinkling", "Midnight", "Glowing", "Hushed"], ["Meadow", "Fireflies", "Glade", "Lights"]],
+	"desert_heat": [["Shimmering", "Blazing", "Sun-baked", "Hazy"], ["Mirage", "Desert", "Sands", "Noon"]],
+	"rainbow_garden": [["Rainbow", "Colourful", "Sunlit", "Happy"], ["Garden", "Hill", "Pond", "Park"]],
+	"pond": [["Froggy", "Lily", "Muddy", "Quiet"], ["Pond", "Bog", "Marsh", "Puddle"]],
+	"dragon_lair": [["Fiery", "Ancient", "Mighty", "Mystic"], ["Dragon", "Lair", "Peak", "Temple"]],
+	"ramen": [["Slurpy", "Steamy", "Noodly", "Tasty"], ["Ramen", "Soup", "Noodles", "Bowl"]],
+	"lava_lamp": [["Groovy", "Bubbling", "Lava", "Retro"], ["Lamp", "Blob", "Lounge", "Glow"]],
+	"mine": [["Rocky", "Explosive", "Deep", "Gritty"], ["Mine", "Quarry", "Tunnel", "Shaft"]],
+}
+const CHAOS_WORDS := [["Mystery", "Wacky", "Curious", "Topsy-turvy", "Chaotic", "Peculiar"], ["Globe", "Wonder", "Contraption", "Jumble", "Surprise", "Oddity"]]
+
+
+static func _roll_name(rng: RandomNumberGenerator, words: Array) -> String:
+	var a: Array = words[0]
+	var b: Array = words[1]
+	return "%s %s" % [a[rng.randi() % a.size()], b[rng.randi() % b.size()]]
+
+
 ## Layer recipes: kind, preset resource, amount range.
 const LAYERS := {
 	"snow": ["particles", "res://particles/snow.tres", Vector2i(500, 1200)],
@@ -141,19 +171,21 @@ const LAYERS := {
 const FANCY_SHELLS := [SnowGlobe.Shell.ICE, SnowGlobe.Shell.BUBBLE, SnowGlobe.Shell.WATER, SnowGlobe.Shell.FORCEFIELD, SnowGlobe.Shell.MAGNETIC]
 
 
-static func roll(rng: RandomNumberGenerator) -> Dictionary:
-	var theme_name := _pick_theme(rng)
+## respect_locks: leave out anything the player hasn't unlocked (see Unlocks);
+## off for the community demo, which shows everything.
+static func roll(rng: RandomNumberGenerator, respect_locks := true) -> Dictionary:
+	var theme_name := _pick_theme(rng, respect_locks)
 	var theme: Dictionary = THEMES[theme_name]
 	var g := {}
 
 	# Glass: mostly middling sizes, now and then a tiny or a big one.
 	var size_roll := rng.randf()
 	if size_roll < 0.15:
-		g["globe_radius"] = rng.randf_range(0.4, 0.65)
+		g["globe_radius"] = rng.randf_range(0.3, 0.45)
 	elif size_roll > 0.87:
-		g["globe_radius"] = rng.randf_range(1.4, 1.9)
+		g["globe_radius"] = rng.randf_range(1.1, SnowGlobe.MAX_RADIUS)
 	else:
-		g["globe_radius"] = rng.randf_range(0.8, 1.2)
+		g["globe_radius"] = rng.randf_range(0.6, 1.0)
 	g["shell"] = SnowGlobe.Shell.GLASS if rng.randf() < 0.7 else FANCY_SHELLS[rng.randi() % FANCY_SHELLS.size()]
 	if theme_name == "plasma" and rng.randf() < 0.5:
 		g["shell"] = [SnowGlobe.Shell.FORCEFIELD, SnowGlobe.Shell.MAGNETIC][rng.randi() % 2]
@@ -208,22 +240,23 @@ static func roll(rng: RandomNumberGenerator) -> Dictionary:
 
 	for k in g:
 		g[k] = GlobePreset._encode(g[k])
-	return {
+	var data := {
 		"version": GlobePreset.VERSION,
-		"name": "Random %s" % theme_name.capitalize(),
+		"name": _roll_name(rng, NAME_WORDS.get(theme_name, CHAOS_WORDS)),
 		"globe": g,
 		"props": _roll_props(rng, theme["props"]),
 		"layers": _roll_layers(rng, theme["layers"]),
 	}
+	return Unlocks.strip_locked(data) if respect_locks else data
 
 
 ## No theme: every part is picked on its own, from everything available.
-static func roll_chaos(rng: RandomNumberGenerator) -> Dictionary:
-	var data := roll(rng)
+static func roll_chaos(rng: RandomNumberGenerator, respect_locks := true) -> Dictionary:
+	var data := roll(rng, false)
 	var g: Dictionary = data["globe"]
 	g["glass_shape"] = rng.randi() % GlassShape.KIND_NAMES.size()
 	g["shell"] = rng.randi() % SnowGlobe.SHELL_NAMES.size()
-	g["globe_radius"] = rng.randf_range(0.4, 1.9)
+	g["globe_radius"] = rng.randf_range(SnowGlobe.MIN_RADIUS, SnowGlobe.MAX_RADIUS)
 	g["base_type"] = rng.randi() % GlobeBase.KIND_NAMES.size()
 	g["glass_width"] = rng.randf_range(0.7, 1.4)
 	g["glass_height"] = rng.randf_range(0.7, 1.6)
@@ -263,20 +296,38 @@ static func roll_chaos(rng: RandomNumberGenerator) -> Dictionary:
 		if entry.has("species"):
 			entry["species"]["color"] = GlobePreset._encode(Color.from_hsv(rng.randf(), rng.randf_range(0.3, 1.0), rng.randf_range(0.5, 1.0)))
 			entry["species"]["size"] = float(entry["species"]["size"]) * rng.randf_range(0.7, 1.6)
-	data["name"] = "Random Chaos"
-	return data
+	data["name"] = _roll_name(rng, CHAOS_WORDS)
+	return Unlocks.strip_locked(data) if respect_locks else data
 
 
-static func _pick_theme(rng: RandomNumberGenerator) -> String:
+static func _pick_theme(rng: RandomNumberGenerator, respect_locks := true) -> String:
+	# Only themes whose signature layer the player can use.
+	var themes := THEMES.keys().filter(func(t: String) -> bool:
+		return not respect_locks or Unlocks.is_unlocked(_recipe_id(THEMES[t]["layers"][0][0])))
+	if themes.is_empty():
+		return "winter"
 	var total := 0
-	for t in THEMES:
+	for t in themes:
 		total += int(THEMES[t]["weight"])
 	var pick := rng.randi() % total
-	for t in THEMES:
+	for t in themes:
 		pick -= int(THEMES[t]["weight"])
 		if pick < 0:
 			return t
 	return "winter"
+
+
+## The unlock id of a layer recipe in LAYERS ("" = free).
+static func _recipe_id(key: String) -> String:
+	var recipe: Array = LAYERS[key]
+	match recipe[0]:
+		"particles":
+			var st: GlobeParticleStyle = load(recipe[1])
+			return Unlocks.layer_id({"kind": "particles", "style": {"shape": st.shape, "wind": st.wind}})
+		"creatures":
+			var sp: CreatureSpecies = load(recipe[1])
+			return Unlocks.layer_id({"kind": "creatures", "species": {"body": sp.body}})
+	return "layer:" + String(recipe[0])
 
 
 static func _roll_props(rng: RandomNumberGenerator, pool: Array) -> Array:
@@ -367,7 +418,7 @@ static func _roll_layers(rng: RandomNumberGenerator, options: Array) -> Array:
 				entry["settings"] = {
 					"style": st,
 					"count": 1 if rng.randf() < 0.7 else 2,
-					"body_length": d["body_length"] * rng.randf_range(0.8, 1.2),
+					"body_length": d["body_length"] * rng.randf_range(0.6, 1.0),
 					"color": GlobePreset._encode((d["color"] as Color).lerp(Color.from_hsv(rng.randf(), 0.7, 0.8), rng.randf_range(0.0, 0.4))),
 					"color2": GlobePreset._encode(d["color2"]),
 				}

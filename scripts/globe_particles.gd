@@ -14,6 +14,8 @@ extends MultiMeshInstance3D
 const SHADER := preload("res://shaders/globe_particles.gdshader")
 ## Floats per instance in the MultiMesh buffer: 12 transform, 4 colour, 4 custom.
 const STRIDE := 20
+## At LITE detail only this share of the particles is simulated and drawn.
+const LITE_FRACTION := 0.35
 
 @export_range(0, 5000, 1) var amount := 600:
 	set(v): amount = v; _queue_reset()
@@ -46,6 +48,10 @@ var _fluid_spin := Vector3.ZERO
 var _agitation := 0.0
 var _time := 0.0
 var _reset_queued := false
+## Asleep: everything has settled and the globe is still, so the simulation
+## is skipped until something moves it.
+var _sleeping := false
+var _sleep_up := Vector3.UP
 
 
 func _init() -> void:
@@ -177,8 +183,37 @@ func _physics_process(delta: float) -> void:
 		return
 	if Engine.is_editor_hint() and not simulate_in_editor:
 		return
+	if not Engine.is_editor_hint():
+		var shown := -1 if _globe.detail == SnowGlobe.Detail.FULL else _sim_count()
+		if multimesh.visible_instance_count != shown:
+			multimesh.visible_instance_count = shown
+		delta = _globe.lod_step(self, delta)
+		if delta <= 0.0:
+			return
+	if _asleep():
+		return
 	_simulate(delta)
 	multimesh.buffer = _buf
+
+
+## How many particles are simulated (and drawn) at the current detail.
+func _sim_count() -> int:
+	if _globe.detail == SnowGlobe.Detail.FULL:
+		return _pos.size()
+	return mini(_pos.size(), ceili(_pos.size() * LITE_FRACTION))
+
+
+## True while asleep; any motion, shake, touch or tilt wakes it.
+func _asleep() -> bool:
+	if not _sleeping:
+		return false
+	if _globe_stirred() or _globe.global_basis.y.dot(_sleep_up) < 0.999:
+		_sleeping = false
+	return _sleeping
+
+
+func _globe_stirred() -> bool:
+	return _globe.linear_acceleration.length() > 0.8 or _globe.angular_velocity.length() > 0.05 or _globe.agitation > 0.02 or _globe.touch_active
 
 
 func _simulate(delta: float) -> void:
@@ -234,7 +269,9 @@ func _simulate(delta: float) -> void:
 	var wind := st.wind
 	var lift := st.lift
 
-	for i in _pos.size():
+	var count := _sim_count()
+	var settled := 0
+	for i in count:
 		var p := _pos[i]
 		var v := _vel[i]
 		var s := _radius[i]
@@ -337,6 +374,8 @@ func _simulate(delta: float) -> void:
 				_rest[i] = 0.0
 		else:
 			_rest[i] = maxf(0.0, _rest[i] - delta)
+		if _rest[i] > 1.0:
+			settled += 1
 
 		_pos[i] = p
 		_vel[i] = v
@@ -352,6 +391,11 @@ func _simulate(delta: float) -> void:
 			_buf[o + 1] = axis.x * length
 			_buf[o + 5] = axis.y * length
 			_buf[o + 9] = axis.z * length
+
+	# All settled and nothing stirring: sleep until the globe moves.
+	if settled == count and count > 0 and not st.pop_at_rest and not _globe_stirred():
+		_sleeping = true
+		_sleep_up = _globe.global_basis.y
 
 
 ## Somewhere on the side of the globe the particles drift away from.

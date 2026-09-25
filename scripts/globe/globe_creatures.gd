@@ -172,6 +172,9 @@ func _spawn(i: int) -> void:
 func _physics_process(delta: float) -> void:
 	if _globe == null or _pos.is_empty() or multimesh == null or Engine.is_editor_hint():
 		return
+	delta = _globe.lod_step(self, delta)
+	if delta <= 0.0:
+		return
 	_simulate(delta)
 	_write_all()
 	multimesh.buffer = _buf

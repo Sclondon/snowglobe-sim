@@ -12,6 +12,8 @@ signal shake_pressed
 signal inspect_pressed
 signal inside_pressed
 signal add_globe_pressed
+## Switch between my shelf and the community cabinet.
+signal community_pressed
 ## The editor asked to take the selected globe off the shelf.
 signal remove_globe_requested
 ## Something the session should remember changed (main.gd saves it).
@@ -37,6 +39,8 @@ const ICON_PUT_BACK := preload("res://ui/icons/put_back.svg")
 const ICON_ADD := preload("res://ui/icons/add.svg")
 const ICON_REMOVE := preload("res://ui/icons/remove.svg")
 const ICON_INSIDE := preload("res://ui/icons/inside.svg")
+const ICON_COMMUNITY := preload("res://ui/icons/community.svg")
+const ICON_HOME := preload("res://ui/icons/home.svg")
 const ACCENT := Color(0.62, 0.78, 1.0)
 
 ## The globe the editor works on (the selected one); set via set_globe().
@@ -55,6 +59,10 @@ var _remove_button: Button
 ## Seconds left to confirm a removal (tap the bin twice).
 var _remove_armed := 0.0
 var _inside_button: Button
+var _community_button: Button
+## True while the community cabinet is shown.
+var _community := false
+var _can_remove := false
 var _top_buttons: Array[Button] = []
 var _hint: Label
 var _hint_tween: Tween
@@ -83,7 +91,8 @@ func _ready() -> void:
 	_remove_button = _tool_button(ICON_REMOVE, "Remove the selected globe", _on_remove_pressed)
 	_edit_button = _tool_button(ICON_EDIT, "Edit globe (E)", toggle_editor)
 	# Laid out right-to-left from the top-right corner.
-	_top_buttons = [_edit_button, _add_button, _remove_button, _inside_button]
+	_community_button = _tool_button(ICON_COMMUNITY, "Community shelf: everyone's globes", community_pressed.emit)
+	_top_buttons = [_edit_button, _add_button, _remove_button, _inside_button, _community_button]
 	_shake_button = _tool_button(ICON_SHAKE, "Shake (Space)", shake_pressed.emit, &"BigButton")
 	_inspect_button = _tool_button(ICON_INSPECT, "Inspect (I)", inspect_pressed.emit, &"BigButton")
 
@@ -109,7 +118,18 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if _fps:
-		_fps.text = "%d fps" % Engine.get_frames_per_second()
+		var full := 0
+		var lite := 0
+		var shown := 0
+		for g in get_tree().get_nodes_in_group(&"snow_globe"):
+			if not g.is_visible_in_tree():
+				continue
+			shown += 1
+			if g.detail == SnowGlobe.Detail.FULL:
+				full += 1
+			elif g.detail == SnowGlobe.Detail.LITE:
+				lite += 1
+		_fps.text = "%d fps  ·  %d globes: %d full, %d lite, %d asleep" % [Engine.get_frames_per_second(), shown, full, lite, shown - full - lite]
 	if _remove_armed > 0.0:
 		_remove_armed -= delta
 		if _remove_armed <= 0.0:
@@ -180,7 +200,38 @@ func _on_remove_pressed() -> void:
 
 
 func set_can_remove(can_remove: bool) -> void:
-	_remove_button.visible = can_remove
+	_can_remove = can_remove
+	_remove_button.visible = can_remove and not _community
+	_layout()
+
+
+## Switches the buttons between my shelf and the community cabinet.
+func set_view(community: bool) -> void:
+	_community = community
+	if community and editor_open:
+		toggle_editor()
+	_community_button.icon = ICON_HOME if community else ICON_COMMUNITY
+	_community_button.tooltip_text = "Back to my shelf" if community else "Community shelf: everyone's globes"
+	for b in [_add_button, _inside_button]:
+		b.visible = not community
+	_remove_button.visible = _can_remove and not community
+	_inspect_button.visible = not community
+	_layout()
+	if community:
+		_show_hint("Everyone's snow globes!  Swipe to browse  ·  pinch to zoom  ·  tap one for a closer look" if _touch 			else "Everyone's snow globes!  Drag to browse  ·  wheel zooms  ·  click one for a closer look  ·  Space shakes")
+	else:
+		set_mode(_mode)
+
+
+## The community globe being looked at (null when none).
+func set_community_viewing(g: SnowGlobe) -> void:
+	_inspect_button.visible = g != null
+	_inspect_button.icon = ICON_PUT_BACK
+	_inspect_button.tooltip_text = "Put it back (Esc)"
+	if g:
+		var who := ("  by " + g.creator) if g.creator != "" else ""
+		var title := ("\u201c%s\u201d" % g.title) if g.title != "" else "This globe"
+		_show_hint("%s%s  ·  drag to turn it, tap it to shake" % [title, who])
 	_layout()
 
 
@@ -239,7 +290,7 @@ func _layout() -> void:
 
 	# Edit in the top-right corner; Shake and Inspect in the bottom corners of
 	# whatever part of the screen the editor leaves free.
-	_edit_button.visible = not editor_open
+	_edit_button.visible = not editor_open and not _community
 	var top_size := Vector2.ZERO
 	var x := free.end.x - MARGIN
 	for b in _top_buttons:

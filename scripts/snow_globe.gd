@@ -17,8 +17,15 @@ extends Node3D
 ## contents can react to being shaken and turned.
 
 signal rebuilt
+## The detail level changed (layers turn their lights on / off).
+signal detail_changed
 
 enum Fill { WATER, AIR }
+## How much simulation a globe gets, so a shelf of dozens stays smooth:
+## FULL = everything; LITE = stepped every few frames with fewer particles and
+## no per-globe lights; ASLEEP = nothing moves (last state stays drawn).
+enum Detail { FULL, LITE, ASLEEP }
+const LITE_STRIDE := 4
 ## What the shell is made of (values match shell_mode in glass_common.gdshaderinc).
 enum Shell { GLASS, ICE, BUBBLE, WATER, NONE, FORCEFIELD, MAGNETIC }
 enum FloorType { SNOW, SAND, GRASS, MOSS, ROCK }
@@ -34,6 +41,9 @@ const GLASS_SHADER := preload("res://shaders/glass.gdshader")
 const GLASS_INSIDE_SHADER := preload("res://shaders/glass_inside.gdshader")
 const STAND_SHADER := preload("res://shaders/stand.gdshader")
 const MAX_PROPS := 16
+## Smallest and largest globe a player can make.
+const MIN_RADIUS := 0.25
+const MAX_RADIUS := 1.3
 
 @export_group("Glass")
 @export_range(0.1, 5.0, 0.01) var globe_radius := 1.0:
@@ -141,7 +151,22 @@ var linear_acceleration := Vector3.ZERO
 var angular_velocity := Vector3.ZERO
 ## Where a finger / mouse is pressing on the glass (globe-local), for layers
 ## that react to touch (plasma, creatures). Set by main.gd.
+## Name shown on the plaque (empty = no plaque) and who made it.
+var title := "":
+	set(v): title = v; _update_label()
+var creator := "":
+	set(v): creator = v; _update_label()
+var _label: GlobeLabel
 var touch_active := false
+## Set by the shelf / cabinet (see Detail).
+var detail := Detail.FULL:
+	set(v):
+		if v == detail:
+			return
+		detail = v
+		detail_changed.emit()
+var _lod_tick := 0
+var _lod_acc := {}
 var touch_point := Vector3.ZERO
 
 ## Local-space centre of the glass.
@@ -181,6 +206,7 @@ var _prop_sway_vel := Vector3.ZERO
 
 
 func _ready() -> void:
+	add_to_group(&"snow_globe")
 	_layout()
 	_orientation = basis.get_rotation_quaternion()
 	target_orientation = _orientation
@@ -243,8 +269,25 @@ func get_obstacles() -> Array[Vector4]:
 ## Switches the glass to the version seen from inside (for the inside camera).
 func set_inside_view(on: bool) -> void:
 	_inside_view = on
+	_update_label()
 	if _glass_node:
 		_glass_node.material_override = _glass_inside_mat if on else _glass_mat
+
+
+## Rebuilds the name plaque at the front of the base.
+func _update_label() -> void:
+	if not is_inside_tree() or _shape == null:
+		return
+	if _label == null:
+		_label = GlobeLabel.new()
+		add_child(_label)
+	var front: float
+	match base_type:
+		GlobeBase.Kind.PEDESTAL: front = globe_radius * stand_bottom_radius
+		GlobeBase.Kind.LEGS: front = globe_radius * 1.2
+		GlobeBase.Kind.PLATFORM: front = platform_radius()
+		_: front = _shape.max_radius * 0.75
+	_label.build("" if _inside_view else title, creator, front, globe_radius)
 
 
 ## Height of the platform stand's top (globe-local).
@@ -364,14 +407,36 @@ func _place_prop(i: int, fr: float) -> void:
 
 # --- Motion ---------------------------------------------------------------------
 
+## Time a layer should simulate this physics frame (0 = skip): the full step
+## at FULL detail; at LITE, the time since its last step, every LITE_STRIDE
+## frames (staggered so globes and layers take turns); nothing when ASLEEP.
+func lod_step(layer: Object, delta: float) -> float:
+	if detail == Detail.FULL:
+		return delta
+	var id := layer.get_instance_id()
+	if detail == Detail.ASLEEP:
+		_lod_acc.erase(id)
+		return 0.0
+	var acc: float = _lod_acc.get(id, 0.0) + delta
+	if (_lod_tick + id) % LITE_STRIDE != 0:
+		_lod_acc[id] = acc
+		return 0.0
+	_lod_acc[id] = 0.0
+	return minf(acc, 0.1)
+
+
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint() or delta <= 0.0:
 		return
-	_react(delta)
-	# Inside a GlobeBody, physics moves the globe and fills in the motion data.
-	if get_parent() is GlobeBody:
+	_lod_tick += 1
+	# Inside a GlobeBody, physics moves the globe and fills in the motion data;
+	# on its own it moves itself (every frame, so it glides smoothly).
+	if not (get_parent() is GlobeBody):
+		_self_move(delta)
+	delta = lod_step(self, delta)
+	if delta <= 0.0:
 		return
-	_self_move(delta)
+	_react(delta)
 
 
 ## Things that respond to the globe's motion: the shell's shimmer, props
@@ -522,6 +587,7 @@ func _rebuild() -> void:
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glass.position = glass_center
 	_generated.add_child(glass)
+	_update_label()
 	rebuilt.emit()
 
 
